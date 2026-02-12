@@ -1,16 +1,17 @@
+
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const { createUser } = require('./Sign_In_Up/up/Sign_up.js')
-const { signIn } = require('./Sign_In_Up/up/Sign_in.js')
+const SignUp = require('./Sign_In_Up/Sign_up.js')
+const signIn = require('./Sign_In_Up/Sign_in.js')
 
 
 const mongoURI = process.env.MONGO_URI;
 
-
-mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+console.log('Connecting to MongoDB...');
+mongoose.connect(mongoURI)
   .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log(err));
+  .catch(err => console.log('MongoDB connection error: ' + err));
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.post('/SignIn', signIn);
 
 const PORT = process.env.PORT || 5000;
 
+console.log('Attempting to listen on port ' + PORT);
 app.listen(PORT, () => {
 
   console.log('Server is running on port ' + PORT);
