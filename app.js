@@ -1,10 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const { createUser } = require('./Sign_In_Up/up/Sign_up.js')
 const { signIn } = require('./Sign_In_Up/up/Sign_in.js')
 
 
-const mongoURI = 'mongodb+srv://oychibane_db_user:Ax3g1SLETz5L2Yfy@mongotutorial.e5dyfko.mongodb.net/?appName=MongoTutorial';
+const mongoURI = process.env.MONGO_URI;
 
 
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -31,9 +32,9 @@ app.post('/SignIn', signIn);
 
 
 
+const PORT = process.env.PORT || 5000;
 
+app.listen(PORT, () => {
 
-app.listen(5000, () => {
-
-  console.log('Server is running on port 3000');
+  console.log('Server is running on port ' + PORT);
 });
