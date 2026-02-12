@@ -1,8 +1,9 @@
-const User = require('../models/user');
-const Teacher = require('../models/teacher');
-const Student = require('../models/student');
-const Admin = require('../models/admin');
+const User = require('../models/userModel');
+const Teacher = require('../models/teacherModel');
+const Student = require('../models/studentModel');
+const Admin = require('../models/adminModel');
 const getNextId = require('../generateID/nextID');
+const mongoose = require('mongoose');
 
 
 const SignUp = async function (req, res) {
@@ -13,26 +14,27 @@ const SignUp = async function (req, res) {
     const data = req.body;
 
     const idmembre = await getNextId('user');
+    const role = data.role;
 
     // Save user
-    const user = new User({ data, idmembre });
+    const user = new User({ ...data, idmembre });
     await user.save({ session });
 
     // Save role-specific document
-    switch (user.role) {
+    switch (role) {
       case 'teacher':
-        const teacher = new Teacher({ data, idmembre });
+        const teacher = new Teacher({ ...data, id_enseignant: idmembre });
         await teacher.save({ session });
         break;
 
       case 'student':
       case 'parent':
-        const student = new Student({ data, idmembre });
+        const student = new Student({ ...data, id_eleve: idmembre });
         await student.save({ session });
         break;
 
       case 'admin':
-        const admin = new Admin({ data, idmembre });
+        const admin = new Admin({ ...data, id_admin: idmembre });
         await admin.save({ session });
         break;
     }

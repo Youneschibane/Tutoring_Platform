@@ -1,10 +1,15 @@
 
-const User = require('../models/user');
+const User = require('../models/userModel');
+const Teacher = require('../models/teacherModel');
+const Student = require('../models/studentModel');
+const Admin = require('../models/adminModel');
 const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
 
 const signIn = async function (req, res) {
   try {
     const { email, phone, password } = req.body;
+    const role = req.body.role;
 
     // Find user by email or phone
     const user = await User.findOne({ $or: [{ email }, { phone }] }).select('+password');
@@ -32,16 +37,16 @@ const signIn = async function (req, res) {
     // Remove password from response
     user.password = undefined;
     // Get full info according to the role of user
-    switch (user.role) {
+    switch (role) {
       case 'teacher':
-        const teacher = await Teacher.findOne({ user: user._id });
+        const teacher = await Teacher.findOne({ id_enseignant: user.idmembre });
         return res.status(200).json({ message: "Login successful", user, teacher });
       case 'student':
       case 'parent':
-        const student = await Student.findOne({ user: user._id });
+        const student = await Student.findOne({ id_eleve: user.idmembre });
         return res.status(200).json({ message: "Login successful", user, student });
       case 'admin':
-        const admin = await Admin.findOne({ user: user._id });
+        const admin = await Admin.findOne({ id_admin: user.idmembre });
         return res.status(200).json({ message: "Login successful", user, admin });
       default:
         return res.status(200).json({ message: "Login successful", user });
