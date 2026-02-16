@@ -1,61 +1,86 @@
-
 const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
 const Admin = require('../models/adminModel');
 const bcrypt = require('bcrypt');
-const mongoose = require('mongoose');
+
+
+// Il sert à faire "travailler" le processeur quand l'utilisateur n'est pas trouvé.
+const DUMMY_HASH = '$2b$12$nY.9.Z.u.X.v.y.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S'; 
 
 const signIn = async function (req, res) {
   try {
     const { email, phone, password } = req.body;
-    const role = req.body.role;
 
-    // Find user by email or phone
-    const user = await User.findOne({ $or: [{ email }, { phone }] }).select('+password');
-
-    if (!user) {
-      //wait few time (same time when we found the user) then send a message to do not give any information about the user to the hacker
-
-      //we can change the message to do not give any information about the user to the hacker
-
-      const time = Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, time));
-      return res.status(404).json({ message: "User not found" });
+    // 1. Vérification basique des champs
+    if ((!email && !phone) || !password) {
+        return res.status(400).json({ 
+            message: "Veuillez fournir un identifiant (email ou téléphone) et un mot de passe." 
+        });
     }
 
-    // Compare password with hashed password in DB
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      //wait few time (as the time when we found the user) then send a message to do not give any information about the user to the hacker
-      const time = Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, time));
-      return res.status(401).json({ message: "  Incorrect password" });
+    // 2. Construction de la requête (Email OU Téléphone)
+    let query = {};
+    if (email) query.email = email;
+    if (phone) query.numberphone = phone; 
+
+    // 3. Recherche de l'utilisateur (+password car il est caché par défaut)
+    const user = await User.findOne(query).select('+password');
+
+   
+    
+    // Si l'utilisateur existe, on prend son hash. Sinon, on prend le faux hash.
+    const hashToCompare = user ? user.password : DUMMY_HASH;
+
+    // On exécute la comparaison dans TOUS les cas.
+    // Cela force le serveur à attendre ~300ms, que l'user existe ou pas.
+    const isMatch = await bcrypt.compare(password, hashToCompare);
+
+    // Si l'utilisateur n'existe pas OU si le mot de passe est faux
+   
+    if (!user || !isMatch) {
+      return res.status(401).json({ message: "Email/Téléphone ou mot de passe incorrect" });
     }
+    
+   
 
-
-    // Remove password from response
+    // succès : On nettoie le mot de passe
     user.password = undefined;
-    // Get full info according to the role of user
-    switch (role) {
+
+    
+    let roleData = null;
+    
+    switch (user.role) {
       case 'teacher':
-        const teacher = await Teacher.findOne({ id_enseignant: user.idmembre });
-        return res.status(200).json({ message: "Login successful", user, teacher });
+        roleData = await Teacher.findOne({ id_enseignant: user.idmembre });
+        break;
       case 'student':
+        roleData = await Student.findOne({ id_eleve: user.idmembre });
+        break;
       case 'parent':
-        const student = await Student.findOne({ id_eleve: user.idmembre });
-        return res.status(200).json({ message: "Login successful", user, student });
+         
+        break;
       case 'admin':
-        const admin = await Admin.findOne({ id_admin: user.idmembre });
-        return res.status(200).json({ message: "Login successful", user, admin });
+        roleData = await Admin.findOne({ id_admin: user.idmembre });
+        break;
       default:
-        return res.status(200).json({ message: "Login successful", user });
+        break;
     }
+
+   
+    return res.status(200).json({
+      status: 'success',
+      message: "Connexion réussie",
+      data: {
+        user,      
+        details: roleData 
+      }
+    });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Login Error:", error);
+    res.status(500).json({ message: "Erreur serveur lors de la tentative de connexion." });
   }
 };
 
 module.exports = signIn;
-
