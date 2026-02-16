@@ -3,15 +3,15 @@ const mongoose = require('mongoose');
 const counterSchema = new mongoose.Schema({
 
 
-  _id: {
-    type: String
-    , required: true
+  _id: {    // id specify the type for ex : users ( professor or student ), sessions , service .. 
+    type: String,
+    required: true,
   },
 
 
-  seq: {
-    type: Number
-    , default: 0
+  seq: {// seq specify the last id in the seuence of  users or sessions services id.
+    type: Number,
+     default: 0,
 
 
   }

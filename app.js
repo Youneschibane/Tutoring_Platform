@@ -4,7 +4,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const SignUp = require('./Sign_In_Up/Sign_up.js')
 const signIn = require('./Sign_In_Up/Sign_in.js')
-
+const Participation = require('../models/participantModel');
 
 const mongoURI = process.env.MONGO_URI;
 
@@ -27,10 +27,7 @@ app.post('/SignIn', signIn);
 
 
 
-
-
-
-
+app.post('/request-session', addParticipant);
 
 
 const PORT = process.env.PORT || 5000;
@@ -39,4 +36,5 @@ console.log('Attempting to listen on port ' + PORT);
 app.listen(PORT, () => {
 
   console.log('Server is running on port ' + PORT);
+  
 });
