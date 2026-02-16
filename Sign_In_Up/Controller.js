@@ -7,6 +7,48 @@ const Admin = require('../models/adminModel');
 const getNextId = require('../generateID/nextID');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+
+
+exports.verifyOtp = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    // 1. Chercher le code
+    const record = await Otp.findOne({ email });
+
+    // 2. Vérifications
+    if (!record) {
+      return res.status(400).json({ message: "Code expiré ou inexistant. Renvoyez le code." });
+    }
+    
+    // Comparaison (Ajoute bcrypt.compare si tu as haché le code, sinon string compare)
+    if (record.otp !== code) {
+      return res.status(400).json({ message: "Code incorrect." });
+    }
+
+    // 3. SUCCÈS : Générer le "Passe-partout" (signupToken)
+    // C'est ce token qui permet d'aller à completeProfile sans retaper l'email
+    const signupToken = jwt.sign(
+      { email: email }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '20m' } 
+    );
+
+    // 4. Nettoyage
+    await Otp.deleteOne({ email });
+
+    res.status(200).json({ 
+      status: 'success', 
+      message: 'Email vérifié !', 
+      signupToken // <--- Le Front-end doit le garder pour l'étape suivante
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
 exports.sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
