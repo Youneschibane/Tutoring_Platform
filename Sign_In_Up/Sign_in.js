@@ -42,7 +42,23 @@ const signIn = async function (req, res) {
       return res.status(401).json({ message: "Email/Téléphone ou mot de passe incorrect" });
     }
     
-   
+    // Détection de connexion depuis un autre appareil
+    const currentIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    const currentUserAgent = req.get('User-Agent') || '';
+    
+    let isDifferentDevice = false;
+    if (user.lastLoginIP && user.lastLoginUserAgent) {
+      // Comparer l'IP et le User-Agent
+      if (user.lastLoginIP !== currentIP || user.lastLoginUserAgent !== currentUserAgent) {
+        isDifferentDevice = true;
+      }
+    }
+
+    // Mettre à jour les informations de dernière connexion
+    user.lastLoginIP = currentIP;
+    user.lastLoginUserAgent = currentUserAgent;
+    user.lastLoginDate = new Date();
+    await user.save();
 
     // succès : On nettoie le mot de passe
     user.password = undefined;
@@ -73,7 +89,11 @@ const signIn = async function (req, res) {
       message: "Connexion réussie",
       data: {
         user,      
-        details: roleData 
+        details: roleData,
+        security: {
+          isDifferentDevice: isDifferentDevice,
+          lastLoginDate: user.lastLoginDate
+        }
       }
     });
 

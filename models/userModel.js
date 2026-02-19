@@ -61,7 +61,21 @@ const userSchema = new mongoose.Schema({
     postaladr: {
         type: Number,
         required: true,
-    }
+    },
+
+    lastLoginIP: {
+        type: String,
+        trim: true,
+    },
+
+    lastLoginUserAgent: {
+        type: String,
+        trim: true,
+    },
+
+    lastLoginDate: {
+        type: Date,
+    },
 
 
 
