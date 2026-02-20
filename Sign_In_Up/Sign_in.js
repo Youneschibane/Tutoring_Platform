@@ -2,7 +2,10 @@ const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
 const Admin = require('../models/adminModel');
+const jwt = require('jsonwebtoken');
+const { sendEmail } = require('../utils/sendEmail');
 const bcrypt = require('bcrypt');
+const handleDeviceDetection = require('../utils/deviceDetection');
 
 
 // Il sert à faire "travailler" le processeur quand l'utilisateur n'est pas trouvé.
@@ -10,7 +13,8 @@ const DUMMY_HASH = '$2b$12$nY.9.Z.u.X.v.y.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.
 
 const signIn = async function (req, res) {
   try {
-    const { email, phone, password } = req.body;
+
+    const { email, phone, password, deviceToken } = req.body;
 
     // 1. Vérification basique des champs
     if ((!email && !phone) || !password) {
@@ -20,7 +24,7 @@ const signIn = async function (req, res) {
     }
 
     // 2. Construction de la requête (Email OU Téléphone)
-    let query = {};
+    const query = {};
     if (email) query.email = email;
     if (phone) query.numberphone = phone; 
 
@@ -41,40 +45,31 @@ const signIn = async function (req, res) {
     if (!user || !isMatch) {
       return res.status(401).json({ message: "Email/Téléphone ou mot de passe incorrect" });
     }
-    
-    // Détection de connexion depuis un autre appareil
-    const currentIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
-    const currentUserAgent = req.get('User-Agent') || '';
-    
-    let isDifferentDevice = false;
-    if (user.lastLoginIP && user.lastLoginUserAgent) {
-      // Comparer l'IP et le User-Agent
-      if (user.lastLoginIP !== currentIP || user.lastLoginUserAgent !== currentUserAgent) {
-        isDifferentDevice = true;
-      }
-    }
 
-    // Mettre à jour les informations de dernière connexion
-    user.lastLoginIP = currentIP;
-    user.lastLoginUserAgent = currentUserAgent;
-    user.lastLoginDate = new Date();
-    await user.save();
 
-    // succès : On nettoie le mot de passe
-    user.password = undefined;
+        user.password = undefined;
 
-    
-    let roleData = null;
-    
-    switch (user.role) {
+
+    // Gestion du deviceToken
+    const deviceResult = await handleDeviceDetection({ user, req, res });
+    const device = deviceResult?.device;
+    const isNewDevice = deviceResult?.isNewDevice;
+
+      // Generate JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '90d' }
+    );
+
+  let roleData = null;
+      switch (user.role) {
       case 'teacher':
         roleData = await Teacher.findOne({ id_enseignant: user.idmembre });
         break;
       case 'student':
+        case 'parent':
         roleData = await Student.findOne({ id_eleve: user.idmembre });
-        break;
-      case 'parent':
-         
         break;
       case 'admin':
         roleData = await Admin.findOne({ id_admin: user.idmembre });
@@ -83,19 +78,24 @@ const signIn = async function (req, res) {
         break;
     }
 
-   
+    
     return res.status(200).json({
       status: 'success',
       message: "Connexion réussie",
+      token,
       data: {
-        user,      
+        user,
         details: roleData,
-        security: {
-          isDifferentDevice: isDifferentDevice,
-          lastLoginDate: user.lastLoginDate
+        device: {
+          deviceToken: device?.deviceToken,
+          isNewDevice,
+          lastUsed: device?.lastUsed,
+          userAgent: device?.userAgent
         }
       }
     });
+
+
 
   } catch (error) {
     console.error("Login Error:", error);

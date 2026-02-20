@@ -1,111 +1,150 @@
 
 const Otp = require('../models/otpModel');
 const User = require('../models/userModel');
-const Teacher = require('../models/teacherModel');
-const Student = require('../models/studentModel');
-const Admin = require('../models/adminModel');
-const getNextId = require('../generateID/nextID');
-const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const { sendEmail } = require('../utils/sendEmail');
+const ResetToken = require('../models/resetTokenModel');
+const { v4: uuidv4 } = require('uuid');
 
 
-exports.verifyOtp = async (req, res) => {
-  try {
-    const { email, code } = req.body;
-
-    // 1. Chercher le code
-    const record = await Otp.findOne({ email });
-
-    // 2. Vérifications
-    if (!record) {
-      return res.status(400).json({ message: "Code expiré ou inexistant. Renvoyez le code." });
-    }
-    
-    // Comparaison (Ajoute bcrypt.compare si tu as haché le code, sinon string compare)
-    if (record.otp !== code) {
-      return res.status(400).json({ message: "Code incorrect." });
-    }
-
-    // 3. SUCCÈS : Générer le "Passe-partout" (signupToken)
-    // C'est ce token qui permet d'aller à completeProfile sans retaper l'email
-    const signupToken = jwt.sign(
-      { email: email }, 
-      process.env.JWT_SECRET, 
-      { expiresIn: '20m' } 
-    );
-
-    // 4. Nettoyage
-    await Otp.deleteOne({ email });
-
-    res.status(200).json({ 
-      status: 'success', 
-      message: 'Email vérifié !', 
-      signupToken // <--- Le Front-end doit le garder pour l'étape suivante
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-
-exports.sendOtp = async (req, res) => {
+// --- Signup OTP (used during signup email verification) ---
+exports.sendSignupOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
     // 1. Vérifier si l'utilisateur a déjà un COMPTE FINAL (Table User)
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "Cet email est déjà utilisé." });
+      return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
     }
 
-    // 2. Vérifier s'il y a déjà un CODE EN COURS (Table Otp)
-    const existingOtp = await Otp.findOne({ email });
-
+    // 2. Anti-spam: vérifier le dernier code
+    const existingOtp = await Otp.findOne({ identifier: email, purpose: 'signup' });
     if (existingOtp) {
-        // --- ANTI-SPAM ---
-        // On vérifie si le dernier code a été envoyé il y a moins de 1 minute
-        const lastCreated = new Date(existingOtp.createdAt).getTime();
-        const now = Date.now();
-        
-        if (now - lastCreated < 60 * 1000) { // 60000ms = 1 minute
-            return res.status(429).json({ 
-                message: "Veuillez attendre 1 minute avant de demander un nouveau code." 
-            });
-        }
+      const lastCreated = new Date(existingOtp.createdAt).getTime();
+      const now = Date.now();
+      if (now - lastCreated < 60 * 1000) {
+        return res.status(429).json({ message: 'Veuillez attendre 1 minute avant de demander un nouveau code.' });
+      }
     }
 
-    // 3. Générer un NOUVEAU code
+    // 3. Générer le code
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 4. Sauvegarder ou Mettre à jour (Upsert)
-    // Si le code existait (mais était vieux) ou n'existait pas (expiré), on le remplace.
-    // IMPORTANT : On force la mise à jour de 'createdAt' pour relancer le timer de 10 min !
+    // 4. Upsert
     await Otp.findOneAndUpdate(
-      { email },
-      { 
-          email, 
-          otp: newOtpCode,
-          createdAt: new Date() // On remet le compteur à zéro !
-      },
+      { identifier: email, purpose: 'signup' },
+      { identifier: email, purpose: 'signup', otp: newOtpCode, createdAt: new Date() },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // 5. Envoyer l'email
-    await sendEmail({
-      email,
-      subject: 'Votre code de vérification',
-      message: `Votre code est : ${newOtpCode}. Valide pour 10 minutes.`
-    });
+    // 5. Envoyer email
+    await sendEmail({ email, subject: 'Votre code de vérification', message: `Votre code est : ${newOtpCode}. Valide pour 10 minutes.` });
 
-    res.status(200).json({ 
-        status: 'success', 
-        message: 'Code envoyé (ou renvoyé) avec succès !' 
-    });
-
+    res.status(200).json({ status: 'success', message: 'Code envoyé (ou renvoyé) avec succès !' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
+
+exports.verifySignupOtp = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const record = await Otp.findOne({ identifier: email, purpose: 'signup' });
+    if (!record) return res.status(400).json({ message: 'Code expiré ou inexistant. Renvoyez le code.' });
+    if (record.otp !== code) return res.status(400).json({ message: 'Code incorrect.' });
+
+    const signupToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '20m' });
+    await Otp.deleteOne({ identifier: email, purpose: 'signup' });
+
+    res.status(200).json({ status: 'success', message: 'Email vérifié !', signupToken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// --- Password reset flow ---
+exports.sendResetOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+
+    const existingOtp = await Otp.findOne({ identifier: email, purpose: 'reset' });
+    if (existingOtp) {
+      const lastCreated = new Date(existingOtp.createdAt).getTime();
+      const now = Date.now();
+      if (now - lastCreated < 60 * 1000) return res.status(429).json({ message: 'Veuillez attendre 1 minute avant de demander un nouveau code.' });
+    }
+
+    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    await Otp.findOneAndUpdate(
+      { identifier: email, purpose: 'reset' },
+      { identifier: email, purpose: 'reset', otp: newOtpCode, createdAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    await sendEmail({ email, subject: 'Code de réinitialisation', message: `Votre code de réinitialisation : ${newOtpCode}` });
+    res.status(200).json({ status: 'success', message: 'Code de réinitialisation envoyé.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+exports.verifyResetOtp = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const record = await Otp.findOne({ identifier: email, purpose: 'reset' });
+    if (!record) return res.status(400).json({ message: 'Code expiré ou invalide.' });
+    if (record.otp !== code) return res.status(400).json({ message: 'Code incorrect.' });
+
+    // Create a short-lived reset token with a unique jti and persist it for single-use
+    const jti = uuidv4();
+    const resetToken = jwt.sign({ email, purpose: 'reset', jti }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    // Persist jti so the token can be validated and consumed exactly once
+    await ResetToken.create({ jti, email, createdAt: new Date() });
+    await Otp.deleteOne({ identifier: email, purpose: 'reset' });
+    res.status(200).json({ status: 'success', resetToken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+    if (!resetToken || !newPassword) return res.status(400).json({ message: 'resetToken and newPassword are required.' });
+
+    let payload;
+    try {
+      payload = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({ message: 'Token invalide ou expiré.' });
+    }
+
+    if (payload.purpose !== 'reset' || !payload.email) return res.status(400).json({ message: 'Token invalide.' });
+
+    // Require jti for single-use tokens and verify it exists in DB
+    if (!payload.jti) return res.status(400).json({ message: 'Token invalide.' });
+    const stored = await ResetToken.findOne({ jti: payload.jti, email: payload.email });
+    if (!stored) return res.status(400).json({ message: 'Token invalide ou déjà utilisé.' });
+
+    const user = await User.findOne({ email: payload.email });
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+
+    user.password = newPassword;
+    await user.save();
+
+    // Consume the reset token so it cannot be reused
+    await ResetToken.deleteOne({ jti: payload.jti });
+
+    res.status(200).json({ status: 'success', message: 'Mot de passe réinitialisé avec succès.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 

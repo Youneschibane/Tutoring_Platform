@@ -1,40 +1,32 @@
-
-require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
-const SignUp = require('./Sign_In_Up/Sign_up.js')
-const signIn = require('./Sign_In_Up/Sign_in.js')
-const Participation = require('../models/participantModel');
+const cookieParser = require('cookie-parser');
+const morgan = require('morgan');
 
-const mongoURI = process.env.MONGO_URI;
-
-console.log('Connecting to MongoDB...');
-mongoose.connect(mongoURI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB connection error: ' + err));
+const authRoutes = require('./routes/authRoutes');
+const deviceRoutes = require('./routes/deviceRoutes');
 
 const app = express();
 
-
+// =====================
+// GLOBAL MIDDLEWARES
+// =====================
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(morgan('dev')); // logs requests in console
 
-//sign up
-app.post('/SignUp', SignUp);
+// =====================
+// ROUTES
+// =====================
+app.use('/api/auth', authRoutes);
+app.use('/api/devices', deviceRoutes);
 
-//sign in
-app.post('/SignIn', signIn);
-
-
-
-// app.post('/request-session', addParticipant);
-
-
-const PORT = process.env.PORT || 5000;
-
-console.log('Attempting to listen on port ' + PORT);
-app.listen(PORT, () => {
-
-  console.log('Server is running on port ' + PORT);
-  
+// =====================
+// 404 HANDLER
+// =====================
+app.use((req, res) => {
+  res.status(404).json({
+    message: 'Route not found'
+  });
 });
+
+module.exports = app;
