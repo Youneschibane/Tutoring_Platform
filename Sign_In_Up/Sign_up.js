@@ -2,19 +2,12 @@ const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
 const Admin = require('../models/adminModel');
+const Device = require('../models/deviceModel');
 const getNextId = require('../generateID/nextID');
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
-const Otp = require('../models/otpModel');
-const otpGenerator = require('otp-generator');
-const { validationResult } = require('express-validator');
-const { createTransport } = require('nodemailer');
 const { sendEmail } = require('../utils/sendEmail');
-const { sendOtp } = require('./Controller');
-const { sendMail } = require('../utils/sendEmail');
-const { addParticipant } = require('../models/participantModel');
+const { v4: uuidv4 } = require('uuid');
 
 
 
@@ -115,7 +108,22 @@ exports.completeProfile = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // 9. Auto-Login (Optional but recommended)
+    // 9. Générer le deviceToken pour le premier appareil
+    const currentIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    const currentUserAgent = req.get('User-Agent') || '';
+    const deviceToken = uuidv4();
+    
+    const newDevice = new Device({
+      userId: newUser._id,
+      deviceToken: deviceToken,
+      userAgent: currentUserAgent,
+      ipAddress: currentIP,
+      lastUsed: new Date(),
+    });
+    
+    await newDevice.save();
+
+    // 10. Auto-Login (Optional but recommended)
     // Create a Login Token immediately so they don't have to sign in again
     const loginToken = jwt.sign(
         { id: newUser._id, role: newUser.role },
@@ -123,14 +131,20 @@ exports.completeProfile = async (req, res) => {
         { expiresIn: '90d' }
     );
 
-    // 10. Send Success Response
+    // 11. Send Success Response
     res.status(201).json({
       status: 'success',
       message: "Account created successfully!",
       token: loginToken, // Send this so frontend can log them in
       data: {
         user: newUser,
-        details: specificData
+        details: specificData,
+        device: {
+          deviceToken: deviceToken,
+          isNewDevice: true,
+          lastUsed: newDevice.lastUsed,
+          userAgent: newDevice.userAgent
+        }
       }
     });
 

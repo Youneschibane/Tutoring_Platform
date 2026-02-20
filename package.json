@@ -22,6 +22,7 @@
   "homepage": "https://github.com/Youneschibane/Tutoring_Platform#readme",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "crypto": "^1.0.1",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
@@ -29,6 +30,7 @@
     "mongoose": "^9.2.1",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.1",
+    "uuid": "^13.0.0",
     "validator": "^13.15.26"
   },
   "devDependencies": {
