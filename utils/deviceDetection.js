@@ -1,14 +1,29 @@
 const Device = require('../models/deviceModel');
 const { v4: uuidv4 } = require('uuid');
 const { sendEmail } = require('./sendEmail');
+const sendSms = require('./sendSMS');
+const UAParser = require('ua-parser-js');
+const geoip = require('geoip-lite');
 
-const handleDeviceDetection = async ({ user, req, res }) => {
+const handleDeviceDetection = async ({ user, req }) => {
   try {
-   
- 
+    // Get contact info from request
+    const { email: contactEmail, phone: contactPhone } = req.body || {};
+
+    // Device token from headers or request body
     let deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
     const currentIP = req.ip;
-    const currentUserAgent = req.headers['user-agent'];
+    const userAgent = req.headers['user-agent'];
+
+    // Parse device name
+    const parser = new UAParser(userAgent);
+    const browser = parser.getBrowser().name || 'Unknown Browser';
+    const os = parser.getOS().name || 'Unknown OS';
+    const deviceName = `${browser} on ${os}`;
+
+    // Get location from IP
+    const geo = geoip.lookup(currentIP);
+    const location = geo?.country || 'Unknown location';
 
     let device = null;
     let isNewDevice = false;
@@ -16,45 +31,65 @@ const handleDeviceDetection = async ({ user, req, res }) => {
     // Check if device exists
     if (deviceToken) {
       device = await Device.findOne({
-        user: user._id,
+        userId: user._id,
         deviceToken
       });
     }
 
-    // If device not found → create new one
+    // If device is new → create
     if (!device) {
       isNewDevice = true;
       deviceToken = uuidv4();
 
       device = await Device.create({
-        user: user._id,
+        userId: user._id,
         deviceToken,
         ipAddress: currentIP,
-        userAgent: currentUserAgent,
+        userAgent,
+        deviceName,
+        location,
         lastUsed: new Date()
       });
 
-      // Send email notification (wee dont block login)
-      if (user.email) {
-        await sendEmail({
-          email: user.email,
-          subject: 'Nouvelle connexion détectée',
-          message: `
-Nouvelle connexion détectée.
+      // Prepare notification
+      const contact = contactEmail || contactPhone || user.email;
+      const message = `
+Nouvelle connexion détectée :
 
-IP: ${currentIP}
-Navigateur: ${currentUserAgent}
+📱 Appareil : ${deviceName}
+🌍 Localisation : ${location}
+🌐 IP : ${currentIP}
+      `;
 
-Si ce n'est pas vous, sécurisez votre compte.
-          `
-        });
+      // Send notification safely
+      if (contact) {
+        try {
+          if (contactEmail || user.email) {
+            await sendEmail({
+              email: contact,
+              subject: 'Nouvelle connexion détectée',
+              message
+            });
+          } else if (contactPhone) {
+            await sendSms({
+              phone: contact,
+              message
+            });
+          }
+        } catch (notifyError) {
+          console.error('Notification error:', notifyError);
+          // Never block login
+        }
       }
 
-
     } else {
-      // Known device → update info
+      // Existing device → update info
       device.lastUsed = new Date();
       device.ipAddress = currentIP;
+      device.userAgent = userAgent;
+      device.deviceName = deviceName;
+      device.location = location;
+
       await device.save();
     }
 

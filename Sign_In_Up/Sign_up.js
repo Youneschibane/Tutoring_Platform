@@ -6,153 +6,140 @@ const Device = require('../models/deviceModel');
 const getNextId = require('../generateID/nextID');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
-const { sendEmail } = require('../utils/sendEmail');
 const { v4: uuidv4 } = require('uuid');
-
-
+const UAParser = require('ua-parser-js');
+const geoip = require('geoip-lite');
 
 exports.completeProfile = async (req, res) => {
-  // 1. Start a Session (Transaction)
-  // We use this to ensure that if saving the Student profile fails, 
-  // the User account is NOT created either. It's all or nothing.
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    // 2. Get Data from Frontend
-    // We expect the signupToken (from Step 1) and the form details (Step 2)
-    const { signupToken, password, role, ...profileData } = req.body;
+    const { signupToken, password, role, firstname, familyname, postaladr, ...profileData } = req.body;
 
-    // 3. Verify the Signup Token
-    if (!signupToken) {
-      throw new Error("Missing signup token. Please verify your email first.");
+    if (!signupToken) throw new Error("Missing signup token. Please verify your email or phone first.");
+    if (!firstname || !familyname || !postaladr || !password || !role) {
+      throw new Error("Missing required profile fields: firstname, familyname, postaladr, password, or role.");
     }
 
+    // Decode the signup token to get verified contact info
     let decoded;
     try {
-      // This checks if the token is valid and not expired (20 mins)
       decoded = jwt.verify(signupToken, process.env.JWT_SECRET);
     } catch (err) {
-      throw new Error("Session expired or invalid token. Please verify email again.");
+      throw new Error("Session expired or invalid token. Please verify email/phone again.");
     }
 
-    // Extract the secure email from the token
-    const email = decoded.email;
+    // Determine contact field (email or numberphone)
+    const contact = { [decoded.field]: decoded.value }; 
 
-    // 4. Double check: Does this user exist already?
-    // (In case they clicked the button twice rapidly)
-    const existingUser = await User.findOne({ email }).session(session);
-    if (existingUser) {
-        throw new Error("User already exists.");
-    }
+    // Check if user already exists
+    const existingUser = await User.findOne(contact).session(session);
+    if (existingUser) throw new Error("User already exists.");
 
-    // 5. Generate the Custom ID (e.g., "U-1001")
+    // Generate unique ID
     const idmembre = await getNextId('user');
 
-    // 6. Create the Main USER (Authentication Data)
+    // Create main User
     const newUser = new User({
-      email: email,       // From Token
-      password: password, // Logic in model will hash this
-      role: role,
-      idmembre: idmembre,
-      isVerified: true,   // Validated because they passed the OTP check!
-      ...profileData      // Stores common data like name/phone if in User Schema
+      firstname,
+      familyname,
+      postaladr,
+      password,   // hashed automatically by schema pre-save
+      role,
+      idmembre,
+      isVerified: true,
+      ...contact, // email or numberphone
+      ...profileData // optional extra fields
     });
 
     await newUser.save({ session });
 
-    // 7. Create the Specific Profile (Role Data)
+    // Create role-specific profile
     let specificData = null;
-
-    // We prepare the data object for the specific role
-    const specificProfileData = {
-        ...profileData,
-        email: email,
-        // We link them using the same ID
-    };
+    const specificProfileData = { firstname, familyname, postaladr, ...contact, ...profileData };
 
     switch (role) {
       case 'teacher':
-        const teacher = new Teacher({
-            ...specificProfileData,
-            id_enseignant: idmembre 
-        });
+        const teacher = new Teacher({ ...specificProfileData, id_enseignant: idmembre });
         await teacher.save({ session });
         specificData = teacher;
         break;
-
       case 'student':
-      case 'parent': // Treating parent as student structure or similar
-        const student = new Student({
-            ...specificProfileData,
-            id_eleve: idmembre
-        });
+      case 'parent':
+        const student = new Student({ ...specificProfileData, id_eleve: idmembre });
         await student.save({ session });
         specificData = student;
         break;
-
       case 'admin':
-        const admin = new Admin({
-            ...specificProfileData,
-            id_admin: idmembre
-        });
+        const admin = new Admin({ ...specificProfileData, id_admin: idmembre });
         await admin.save({ session });
         specificData = admin;
         break;
-
       default:
-        throw new Error("Invalid Role specified.");
+        throw new Error("Invalid role specified.");
     }
 
-    // 8. Commit the Transaction (Save everything permanently)
     await session.commitTransaction();
     session.endSession();
 
-    // 9. Générer le deviceToken pour le premier appareil
-    const currentIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    // Register first device
+    const currentIP = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || '';
     const currentUserAgent = req.get('User-Agent') || '';
+
+    // Parse user-agent for device name
+    const parser = new UAParser(currentUserAgent);
+    const browser = parser.getBrowser().name || 'Unknown Browser';
+    const os = parser.getOS().name || 'Unknown OS';
+    const deviceName = `${browser} on ${os}`;
+
+    // Geo lookup from IP
+    const geo = geoip.lookup(currentIP);
+    const location = geo?.country || 'Unknown location';
+
     const deviceToken = uuidv4();
-    
+
     const newDevice = new Device({
       userId: newUser._id,
-      deviceToken: deviceToken,
+      deviceToken,
       userAgent: currentUserAgent,
       ipAddress: currentIP,
-      lastUsed: new Date(),
+      deviceName,
+      location,
+      lastUsed: new Date()
     });
-    
+
     await newDevice.save();
 
-    // 10. Auto-Login (Optional but recommended)
-    // Create a Login Token immediately so they don't have to sign in again
+    // Generate login JWT
     const loginToken = jwt.sign(
-        { id: newUser._id, role: newUser.role },
-        process.env.JWT_SECRET,
-        { expiresIn: '90d' }
+      { id: newUser._id, role: newUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '90d' }
     );
 
-    // 11. Send Success Response
+    // Send response
     res.status(201).json({
       status: 'success',
       message: "Account created successfully!",
-      token: loginToken, // Send this so frontend can log them in
+      token: loginToken,
       data: {
         user: newUser,
         details: specificData,
         device: {
-          deviceToken: deviceToken,
+          deviceToken,
           isNewDevice: true,
           lastUsed: newDevice.lastUsed,
-          userAgent: newDevice.userAgent
+          userAgent: newDevice.userAgent,
+          deviceName: newDevice.deviceName,
+          location: newDevice.location
         }
       }
     });
 
   } catch (error) {
-    // If ANY error happens, undo everything
     await session.abortTransaction();
     session.endSession();
-    
     console.error("Signup Error:", error);
     res.status(400).json({
       status: 'fail',
@@ -160,4 +147,3 @@ exports.completeProfile = async (req, res) => {
     });
   }
 };
-
