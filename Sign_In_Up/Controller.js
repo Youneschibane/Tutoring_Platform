@@ -5,65 +5,110 @@ const jwt = require('jsonwebtoken');
 const { sendEmail } = require('../utils/sendEmail');
 const ResetToken = require('../models/resetTokenModel');
 const { v4: uuidv4 } = require('uuid');
+const {sendSms} = require('../utils/sendSMS'); 
 
 
 // --- Signup OTP (used during signup email verification) ---
+
+const mongoose = require('mongoose');
+
+
+
+
 exports.sendSignupOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, phone } = req.body;
 
-    // 1. Vérifier si l'utilisateur a déjà un COMPTE FINAL (Table User)
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
+    if (!email && !phone) {
+      return res.status(400).json({ message: "Veuillez fournir un email ou un numéro de téléphone." });
     }
 
-    // 2. Anti-spam: vérifier le dernier code
-    const existingOtp = await Otp.findOne({ identifier: email, purpose: 'signup' });
+    const contactField = email ? { email } : { phone };
+
+    const existingUser = await User.findOne(contactField);
+    if (existingUser) {
+      return res.status(400).json({ message: "Ce contact est déjà utilisé pour un compte existant." });
+    }
+
+    const existingOtp = await Otp.findOne(contactField);
+
     if (existingOtp) {
       const lastCreated = new Date(existingOtp.createdAt).getTime();
       const now = Date.now();
+
       if (now - lastCreated < 60 * 1000) {
-        return res.status(429).json({ message: 'Veuillez attendre 1 minute avant de demander un nouveau code.' });
+        return res.status(429).json({ message: "Veuillez attendre 1 minute avant de demander un nouveau code." });
       }
     }
 
-    // 3. Générer le code
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 4. Upsert
     await Otp.findOneAndUpdate(
-      { identifier: email, purpose: 'signup' },
-      { identifier: email, purpose: 'signup', otp: newOtpCode, createdAt: new Date() },
+      contactField,
+      { ...contactField, otp: newOtpCode, createdAt: new Date() },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // 5. Envoyer email
-    await sendEmail({ email, subject: 'Votre code de vérification', message: `Votre code est : ${newOtpCode}. Valide pour 10 minutes.` });
+    if (email) {
+      await sendEmail({
+        email,
+        subject: 'Votre code de vérification',
+        message: `Votre code est : ${newOtpCode}. Valide pour 10 minutes.`
+      });
+    } else if (phone) {
+      await sendSms({
+        phone,
+        message: `Votre code de vérification PRJP10 est : ${newOtpCode}.`
+      });
+    }
 
-    res.status(200).json({ status: 'success', message: 'Code envoyé (ou renvoyé) avec succès !' });
+    res.status(200).json({
+      status: 'success',
+      message: `Code envoyé avec succès sur votre ${email ? 'email' : 'téléphone'} !`
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
-
 exports.verifySignupOtp = async (req, res) => {
   try {
-    const { email, code } = req.body;
-    const record = await Otp.findOne({ identifier: email, purpose: 'signup' });
-    if (!record) return res.status(400).json({ message: 'Code expiré ou inexistant. Renvoyez le code.' });
-    if (record.otp !== code) return res.status(400).json({ message: 'Code incorrect.' });
+    const { email, phone, code } = req.body;
 
-    const signupToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '20m' });
-    await Otp.deleteOne({ identifier: email, purpose: 'signup' });
+    if (!email && !phone) {
+      return res.status(400).json({ message: "Veuillez fournir l'email ou le téléphone à vérifier." });
+    }
 
-    res.status(200).json({ status: 'success', message: 'Email vérifié !', signupToken });
+    const contactField = email ? { email } : { phone };
+
+    const record = await Otp.findOne(contactField);
+    if (!record) {
+      return res.status(400).json({ message: "Code expiré ou inexistant. Renvoyez le code." });
+    }
+
+    if (record.otp !== code) {
+      return res.status(400).json({ message: "Code incorrect." });
+    }
+
+  
+    const signupToken = jwt.sign(
+      { field: email ? 'email' : 'phone', value: email || phone },
+      process.env.JWT_SECRET,
+      { expiresIn: '20m' }
+    );
+
+    await Otp.deleteOne(contactField);
+
+    res.status(200).json({
+      status: 'success',
+      message: `${email ? 'Email' : 'Téléphone'} vérifié avec succès !`,
+      signupToken
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // --- Password reset flow ---
 exports.sendResetOtp = async (req, res) => {

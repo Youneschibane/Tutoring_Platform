@@ -3,72 +3,63 @@ const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
 const Admin = require('../models/adminModel');
 const jwt = require('jsonwebtoken');
-const { sendEmail } = require('../utils/sendEmail');
 const bcrypt = require('bcrypt');
 const handleDeviceDetection = require('../utils/deviceDetection');
+const { sendEmail } = require('../utils/sendEmail');
 
+// Dummy hash to prevent timing attacks when user does not exist
+const DUMMY_HASH = '$2b$12$nY.9.Z.u.X.v.y.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S';
 
-// Il sert à faire "travailler" le processeur quand l'utilisateur n'est pas trouvé.
-const DUMMY_HASH = '$2b$12$nY.9.Z.u.X.v.y.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S'; 
-
-const signIn = async function (req, res) {
+const signIn = async (req, res) => {
   try {
+    const { email, phone, password } = req.body;
 
-    const { email, phone, password, deviceToken } = req.body;
-
-    // 1. Vérification basique des champs
+    //  Basic validation
     if ((!email && !phone) || !password) {
-        return res.status(400).json({ 
-            message: "Veuillez fournir un identifiant (email ou téléphone) et un mot de passe." 
-        });
+      return res.status(400).json({ 
+        message: "Veuillez fournir un identifiant (email ou téléphone) et un mot de passe." 
+      });
     }
 
-    // 2. Construction de la requête (Email OU Téléphone)
+    //  Build query
     const query = {};
     if (email) query.email = email;
     if (phone) query.numberphone = phone; 
 
-    // 3. Recherche de l'utilisateur (+password car il est caché par défaut)
+    //  Find user and include password
     const user = await User.findOne(query).select('+password');
 
-   
-    
-    // Si l'utilisateur existe, on prend son hash. Sinon, on prend le faux hash.
+    //  Compare password safely
     const hashToCompare = user ? user.password : DUMMY_HASH;
-
-    // On exécute la comparaison dans TOUS les cas.
-    // Cela force le serveur à attendre ~300ms, que l'user existe ou pas.
     const isMatch = await bcrypt.compare(password, hashToCompare);
 
-    // Si l'utilisateur n'existe pas OU si le mot de passe est faux
-   
     if (!user || !isMatch) {
       return res.status(401).json({ message: "Email/Téléphone ou mot de passe incorrect" });
     }
 
+    //  Mask password before returning
+    user.password = undefined;
 
-        user.password = undefined;
-
-
-    // Gestion du deviceToken
-    const deviceResult = await handleDeviceDetection({ user, req, res });
+    //  Device detection (new or existing)
+    const deviceResult = await handleDeviceDetection({ user, req });
     const device = deviceResult?.device;
     const isNewDevice = deviceResult?.isNewDevice;
 
-      // Generate JWT
+    //  Generate JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '90d' }
     );
 
-  let roleData = null;
-      switch (user.role) {
+    //  Fetch role-specific data
+    let roleData = null;
+    switch (user.role) {
       case 'teacher':
         roleData = await Teacher.findOne({ id_enseignant: user.idmembre });
         break;
       case 'student':
-        case 'parent':
+      case 'parent':
         roleData = await Student.findOne({ id_eleve: user.idmembre });
         break;
       case 'admin':
@@ -78,7 +69,7 @@ const signIn = async function (req, res) {
         break;
     }
 
-    
+    //  Return response including full device info
     return res.status(200).json({
       status: 'success',
       message: "Connexion réussie",
@@ -90,16 +81,16 @@ const signIn = async function (req, res) {
           deviceToken: device?.deviceToken,
           isNewDevice,
           lastUsed: device?.lastUsed,
-          userAgent: device?.userAgent
+          userAgent: device?.userAgent,
+          deviceName: device?.deviceName,
+          location: device?.location
         }
       }
     });
 
-
-
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({ message: "Erreur serveur lors de la tentative de connexion." });
+    return res.status(500).json({ message: "Erreur serveur lors de la tentative de connexion." });
   }
 };
 

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const deviceSchema = new mongoose.Schema({
-    userId: {
+    userId: {  
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
@@ -20,6 +20,10 @@ const deviceSchema = new mongoose.Schema({
         trim: true,
     },
     deviceName: {
+        type: String,
+        trim: true,
+    },
+    location: {  
         type: String,
         trim: true,
     },
