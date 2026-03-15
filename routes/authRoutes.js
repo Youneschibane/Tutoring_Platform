@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const SignUp = require('../Sign_In_Up/Sign_up');
+const { completeProfile } = require('../Sign_In_Up/Sign_up');
 const signIn = require('../Sign_In_Up/Sign_in');
 const controller = require('../Sign_In_Up/Controller');
 
 // Signup / Signin
-router.post('/signup', SignUp);
+router.post('/signup', completeProfile);
 router.post('/signin', signIn);
 
 // Signup OTP
