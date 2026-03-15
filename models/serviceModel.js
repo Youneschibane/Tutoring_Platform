@@ -46,12 +46,19 @@ let service=new mongoose.Schema({
 
 
   actif:{type:Boolean,required:true},
-
+  modalite_service: {
+  type: String,
+  enum: ["online","onsite","both"],
+  required: true
+},
 
 
   date_creation:{type:Date,default:Date.now}
 })
 
+service.index({ matiere: 1 });
+service.index({ prix: 1 });
+service.index({ niveau_concerne: 1 });
 
 const Service=mongoose.model('Service',service);
 module.exports=Service;
