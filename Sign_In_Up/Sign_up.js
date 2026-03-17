@@ -71,11 +71,6 @@ exports.completeProfile = async (req, res) => {
         await student.save({ session });
         specificData = student;
         break;
-      case 'admin':
-        const admin = new Admin({ ...specificProfileData, id_admin: idmembre });
-        await admin.save({ session });
-        specificData = admin;
-        break;
       default:
         throw new Error("Invalid role specified.");
     }
