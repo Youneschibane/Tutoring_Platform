@@ -1,7 +1,5 @@
 const mongoose = require('mongoose');
 
-
-
 let enseignant=new mongoose.Schema({
 
 
@@ -10,13 +8,10 @@ let enseignant=new mongoose.Schema({
     required:true
   },
 
-
-
-
   nature:{type:String
     ,required:true
     //enum in english
-    ,enum:["Independant","Etablissement","Center"]
+    ,enum:["Independant","Etablissement","Centre"]
   },
 
 
@@ -53,24 +48,6 @@ let enseignant=new mongoose.Schema({
     type:String,
     required:true
   },
-
-
-
-  parcours_academique:{
-    type:String
-    ,required:true
-  },
-
-
-
-
-  experience_professionnelle:{
-    type:String,
-    required:true
-  
-  },
-
-
 
 
   certifications:{
