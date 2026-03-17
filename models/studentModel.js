@@ -29,7 +29,7 @@ let eleve=new mongoose.Schema({
 
   id_parent:{
     type:Number,
-    required:true
+   
   },
 
 

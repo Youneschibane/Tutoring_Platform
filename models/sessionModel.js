@@ -1,53 +1,74 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
+const seanceSchema = new mongoose.Schema({
 
-let seance=new mongoose.Schema({
+  service: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+    required: true
+  },
 
+  enseignant: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Enseignant",
+    required: true
+  },
 
-  id_seance:{type:Number,required:true},
+  etudiants: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Etudiant"
+  }],
 
+  date_seance: {
+    type: Date,
+    required: true
+  },
 
+  heure_debut: {
+    type: String,
+    required: true
+  },
 
-  id_service:{type:Number,required:true},
+  heure_fin: {
+    type: String,
+    required: true
+  },
 
+  nombre_max_participants: {
+    type: Number,
+    default: 1
+  },
 
-  id_enseignant:{type:Number,required:true},
+  type_seance: {
+    type: String,
+    enum: ["privee", "groupe"],
+    default: "privee"
+  },
 
+  mode: {
+    type: String,
+    enum: ["presentiel", "en_ligne"],
+    required: true
+  },
 
-  date_seance:{type:Date,required:true},
+  lieu: {
+    type: String
+  },
 
+  lien_visio: {
+    type: String
+  },
 
-  heure_debut:{type:Date,required:true},
+  statut: {
+    type: String,
+    enum: ["en_attente", "confirmee", "annulee", "terminee", "reportee"],
+    default: "en_attente"
+  },
 
+  notes_enseignant: {
+    type: String
+  }
 
+}, { timestamps: true });
 
-  heure_fin:{type:Date,required:true},
-
-
-
-  nombre_participants:{type:Number,required:true},
-
-
-
-  modalite:{type:String,required:true,enum:["Planifiee","Annulee","Terminee"]},
-
-
-
-  lieu:{type:String,required:true},
-
-
-
-  lien_visio:{type:String,required:true},
-
-
-
-  statut:{type:String,required:true,enum:["Annulee","Confirmee","Reportee"]},
-
-
-
-
-  notes_enseignant:{type:String,required:true},
-
-  
-  date_creation:{type:Date,default:Date.now}
-})
+module.exports = mongoose.model("Seance", seanceSchema);
