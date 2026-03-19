@@ -1,9 +1,15 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
+require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
+const teacherRoutes = require('./routes/searchRoutes');
+const reservationRoutes=require('./routes/reserveSession')
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger-output.json');
+const devisRouter = require('./routes/devisRoutes');
 
 const app = express();
 
@@ -19,6 +25,18 @@ app.use(morgan('dev')); // logs requests in console
 // =====================
 app.use('/api/auth', authRoutes);
 app.use('/api/devices', deviceRoutes);
+app.use('/api/search', teacherRoutes);
+//reserve session for student 
+app.use('/api/session',reservationRoutes)
+
+//demander in devis
+app.use('/api/devis', devisRouter);
+
+
+// La page de doc sera disponible sur http://localhost:3000/api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+
 
 // =====================
 // 404 HANDLER
