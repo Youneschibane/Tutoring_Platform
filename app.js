@@ -10,7 +10,7 @@ const reservationRoutes=require('./routes/reserveSession')
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger-output.json');
 const devisRouter = require('./routes/devisRoutes');
-
+const specialtyRouter = require('./routes/specialityRouter')
 const app = express();
 
 // =====================
@@ -32,6 +32,7 @@ app.use('/api/session',reservationRoutes)
 //demander in devis
 app.use('/api/devis', devisRouter);
 
+app.use('/api/specialties', specialtyRouter);
 
 // La page de doc sera disponible sur http://localhost:3000/api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
