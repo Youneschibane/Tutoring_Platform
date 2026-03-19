@@ -20,7 +20,7 @@ let devis_pedagogique=new mongoose.Schema({
 
 
 
-  niveau_scolaire:{type:String,required:true,enum:["Primaire","Collège","Lycée","Université"]},
+  niveau_scolaire:{type:String,required:true,enum:["Primaire","Moyen","Secondaire","ESI"]},
 
 
 

@@ -59,7 +59,123 @@ const Data = [
   },
   { cycle: "Secondaire", level: 3, levelName: "3SLE", specialty: "Lettres et Philosophie", 
     subjects: ["Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais" , "Espagnol" , "Allemand " , "Italien"] 
-  }
+  },
+
+  //---------------------------------------------------------------------------------------
+
+
+  
+  // ================= 1CP (1ère Année Classe Préparatoire) =================
+  { 
+    cycle: "ESI", level: 1, levelName: "1CP", specialty: "Tronc commun", 
+    subjects: [
+      "Algorithmique et Structures de Données 1", 
+      "Architecture des Ordinateurs 1", 
+      "Analyse Mathématique 1", 
+      "Algèbre 1", 
+      "Bureautique et web", 
+      "Systèmes d'Exploitation 1", 
+      "Anglais 1",
+      "Algorithmique et Structures de Données 2", 
+      "Architecture des Ordinateurs 2", 
+      "Analyse Mathématique 2", 
+      "Algèbre 2", 
+      "Électricité", 
+      "Electronique Fondamentale 1",
+      "Anglais 2", "Français 2"
+    ] 
+  },
+
+  // ================= 2CP (2ème Année Classe Préparatoire) =================
+  { 
+    cycle: "ESI", level: 2, levelName: "2CP", specialty: "Tronc commun", 
+    subjects: [
+      "Fichier et Structures de Données Dynamiques", 
+      "Architecture des Ordinateurs 3", 
+      "Analyse Mathématique 3", 
+      "Algèbre 3", 
+      "Logique Mathématique", 
+      "Électronique Numérique", 
+      "Économie d'Entreprise", 
+      "Anglais 3",
+      "Programmation Orientée Objet", 
+      "Systèmes d'Information", 
+      "Analyse Mathématique 4", 
+      "Probabilités et Statistiques 1", 
+      "Electronique Fondamentale 2",
+      "Probabilités et Statistiques 2", 
+      "Anglais 3"
+    ] 
+  },
+
+  // ================= 1CS (1ère Année Cycle Supérieur) =================
+  { 
+    cycle: "ESI", level: 3, levelName: "1CS", specialty: "Tronc commun", 
+    subjects: [
+      "Théorie des Langages et Compilation", 
+      "Réseaux de Communication", 
+      "Systèmes d'Exploitation Centralisé", 
+      "Théorie des Graphes", 
+      "Analyse Numérique", 
+      "Anglais 5",
+      "Bases de Données", 
+      "Génie Logiciel", 
+      "Intelligence Artificielle", 
+      "Interaction Homme-Machine", 
+      "Recherche Opérationnelle", 
+      "Sécurité Informatique", 
+      "Management de l'Entreprise"
+    ] 
+  }, 
+  { 
+  cycle: "ESI", level: 4, levelName: "2CS", specialty: "SIQ", 
+  subjects: [
+    "Systèmes d'Exploitation Répartis",
+    "Administration et Sécurité des Réseaux",
+    "Conception des Systèmes de Calcul",
+    "Vérification et Tests",
+    "Modélisation et Évaluation de Performances ",
+    "Optimisation Combinatoire",
+    "Anglais 6",
+    "Entrepreneuriat"
+  ]},
+  { 
+  cycle: "ESI", level: 4, levelName: "2CS", specialty: "SID", 
+  subjects: [
+    "Systèmes de Gestion de Bases de Données ",
+    "Entrepôts de Données ",
+    "Fouille de Données ",
+    "Recherche d'Information et Web Sémantique",
+    "Big Data et Analyse de Données",
+    "Administration des Bases de Données",
+    "Anglais 6",
+    "Entrepreneuriat"
+  ]},
+{ 
+  cycle: "ESI", level: 4, levelName: "2CS", specialty: "SIL", 
+  subjects: [
+    "Architecture Logicielle (ARL)",
+    "Vérification et Tests (V&T)",
+    "Qualité du Logiciel",
+    "Systèmes d'Information Décisionnels (BI)",
+    "Développement Mobile et Web Avancé",
+    "Processus de Développement Logiciel",
+    "Anglais 6",
+    "Entrepreneuriat"
+  ]
+} , { 
+  cycle: "ESI", level: 4, levelName: "2CS", specialty: "SIT", 
+  subjects: [
+    "Audit des Systèmes d'Information",
+    "Urbanisation des Systèmes d'Information",
+    "Gouvernance des Systèmes d'Information",
+    "Progiciels de Gestion Intégrés (ERP)",
+    "E-Business et Marketing Digital",
+    "Management de Projets de Systèmes d'Information",
+    "Anglais 6",
+    "Entrepreneuriat"
+  ]
+}
 ];
 
 const initiliseDB = async () => {

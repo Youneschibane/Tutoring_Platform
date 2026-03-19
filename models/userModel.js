@@ -2,8 +2,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 
-
-
 const userSchema = new mongoose.Schema({
 
     idmembre: {
@@ -73,14 +71,17 @@ const userSchema = new mongoose.Schema({
 
 
 
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
+    // Only hash password if it's been modified
     if (!this.isModified('password')) {
-        return next();
+        return;
     }
 
-
-    this.password = await bcrypt.hash(this.password, 12);
-    next();
+    try {
+        this.password = await bcrypt.hash(this.password, 12);
+    } catch (error) {
+        throw new Error(`Password hashing failed: ${error.message}`);
+    }
 });
 
 // Compare entered password with hashed password
