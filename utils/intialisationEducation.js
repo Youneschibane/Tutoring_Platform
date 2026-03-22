@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const path = require('path');
 // Charge le fichier .env qui est dans le dossier parent
-require('dotenv').config({ path: path.resolve(__dirname, '../.gitignore') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const mongoURI = process.env.MONGO_URI;
 const Education = require('../models/educationModel');
 
