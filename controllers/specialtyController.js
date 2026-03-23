@@ -60,8 +60,50 @@ const getEsiSpeciality = async (req, res) => {
   }
 };
 
+const getSubjectByNature = async (req, res) => {
+  const { cycle, nature } = req.query;
+
+  if (cycle?.toLowerCase() === 'secondaire') {
+    let subjects = [];
+
+    switch (nature?.toLowerCase()) {
+      case 'technique':
+        subjects = ["SVT","Mathématiques", "Physique", "Génie Civil", "Génie Mécanique", "Génie Électrique", "Génie des Procédés"];
+        break;
+
+      case 'lettre':
+        subjects = ["Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais", "Espagnol", "Allemand"];
+        break;
+
+      case 'gestion':
+        subjects = ["Comptabilité et Gestion Financière", "Économie et Management", "Droit"];
+        break;
+
+      default:
+        return res.status(404).json({ 
+          status: 'fail', 
+          message: "Nature de filière inconnue (choisissez technique, lettre ou gestion )" 
+        });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      cycle: "Secondaire",
+      nature: nature,
+      subjects: subjects
+    });
+  }
+
+  return res.status(400).json({ 
+    status: 'fail', 
+    message: "Le cycle doit être 'secondaire' pour cette fonction." 
+  });
+};
+
+
 module.exports = {
   getSubjectsByCycle,
   getEsiSpeciality,
-  getEsiYears
+  getEsiYears,
+  getSubjectByNature
 };
