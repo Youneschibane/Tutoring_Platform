@@ -45,7 +45,7 @@ let devis_pedagogique=new mongoose.Schema({
   statut:{type:String,required:true,enum:["En_attente","Accepte","Refuse"]},
 
 
-
+  repondue:{type : Boolean},
 
   reponse_enseignant:{type:String,required:true},
 

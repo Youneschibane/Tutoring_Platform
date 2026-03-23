@@ -4,4 +4,8 @@ const specialtyController = require('../controllers/specialtyController');
 
 router.get('/subjects', specialtyController.getSubjectsByCycle);
 
+router.get('/levels' , specialtyController.getEsiYears);
+
+router.get('/list' , specialtyController.getEsiSpeciality); 
+
 module.exports = router;
