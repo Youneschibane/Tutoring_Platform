@@ -14,8 +14,6 @@ let enseignant=new mongoose.Schema({
   },
 
 
-
-
   latitude:{type:Number,
     required:true
   },
@@ -54,21 +52,6 @@ let enseignant=new mongoose.Schema({
     ,required:true
   },
 
-  rayon_deplacement: {
-    type: Number,
-    required: true // meters
-  },
-
-  description_pedagogique: {
-    type: String,
-    required: true
-  },
-
-  certifications: {
-    type: String,
-    required: true
-  },
-
   actif: {
     type: Boolean,
     required: true
@@ -91,7 +74,8 @@ let enseignant=new mongoose.Schema({
   },
 
   subjects: [{
-    type: String
+    type: String,
+    cycle:Number
   }]
 
 });
