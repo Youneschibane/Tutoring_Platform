@@ -6,10 +6,12 @@ const getSubjectsByCycle = async (req, res) => {
     let results = []; 
 
     if (cycleChoisi === "ESI") {
-      let filter = { cycle: "ESI", levelName: niveau };
-      
-      if (niveau === "2CS") {
-        if (specialité) {
+      let filter = { cycle: "ESI" };
+
+      if (niveau) {
+        filter.levelName = niveau;
+        
+        if (niveau === "2CS" && specialité) {
           filter.specialty = specialité.toUpperCase();
         }
       }
