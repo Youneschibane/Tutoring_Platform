@@ -94,7 +94,8 @@ const repondreDevis = async (req, res) => {
         statut, 
         messageProf, 
         prixPropose,
-        dateReponse: Date.now() 
+        dateReponse: Date.now() ,
+        repondue : true
       },
       { new: true, runValidators: true }
     );
@@ -103,10 +104,9 @@ const repondreDevis = async (req, res) => {
       return res.status(404).json({ message: "Devis non trouvé." });
     }
 
-    // 3. Réponse au client
     res.status(200).json({
       status: 'success',
-      message: `Le devis a été ${statut} avec succès.`,
+      message: `Le devis a été répondu , le statut :  ${statut}.`,
       data: devisMisAJour
     });
 
@@ -117,5 +117,6 @@ const repondreDevis = async (req, res) => {
 
 module.exports = {
   creerDevis, 
-  getMesDevis
+  getMesDevis,
+  repondreDevis
 };
