@@ -2,8 +2,27 @@ const Specialty = require('../models/educationModel');
 
 const getSubjectsByCycle = async (req, res) => {
   try {
-    const { cycleChoisi } = req.query;
+    const { cycleChoisi , niveau , specialité } = req.query;
 
+  if (cycleChoisi === "ESI") {
+    let filter = { cycle: "ESI", levelName: niveau };
+    // if  le niveau 2CS, on ajoute la spécialité au filtre
+    if (niveau === "2CS") 
+      {
+        if (specialité) {
+          filter.specialty = specialité.toUpperCase();
+        }         
+    }
+
+      const results = await Specialty.find(filter);
+      
+      if (!results || results.length === 0) {
+        return res.status(404).json({ message: "Modules ESI non trouvés pour ce niveau/spécialité" });
+      }
+
+      const allSubjects = results.flatMap(doc => doc.subjects);
+      uniqueSubjects = [...new Set(allSubjects)];
+    }else {
     const results = await Specialty.find({ cycle: cycleChoisi });
 
     if (!results || results.length === 0) {
@@ -12,6 +31,8 @@ const getSubjectsByCycle = async (req, res) => {
 
     const allSubjects = results.flatMap(doc => doc.subjects);
     const uniqueSubjects = [...new Set(allSubjects)];
+
+    }
 
     res.status(200).json({
       status: 'success',
