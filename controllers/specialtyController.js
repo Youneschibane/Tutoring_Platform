@@ -21,7 +21,7 @@ const getSubjectsByCycle = async (req, res) => {
       }
 
       const allSubjects = results.flatMap(doc => doc.subjects);
-      uniqueSubjects = [...new Set(allSubjects)];
+      const uniqueSubjects = [...new Set(allSubjects)];
     }else {
     const results = await Specialty.find({ cycle: cycleChoisi });
 
