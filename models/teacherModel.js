@@ -73,11 +73,16 @@ let enseignant=new mongoose.Schema({
     default: false
   },
 
-  subjects: [{
-    type: String,
-    cycle:Number
+subjects: [{
+    name: { 
+      type: String, 
+      required: true 
+    },
+    cycle: { 
+      type: String, 
+      required: true 
+    }
   }]
-
 });
 
  // GEO INDEX 
