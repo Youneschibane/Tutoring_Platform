@@ -45,7 +45,7 @@ exports.sendSignupOtp = async (req, res) => {
     const identifier = email || phone;
     const purpose = 'signup';
 
-    const existingUser = await User.findOne(email ? { email } : { phone });
+       const existingUser = await User.findOne(email ? { email } : { numberphone: phone });
     if (existingUser) {
       return res.status(400).json({ message: "Ce contact est déjà utilisé pour un compte existant." });
     }
@@ -148,8 +148,8 @@ exports.sendSignupOtp = async (req, res) => {
       throw new Error("JWT_SECRET is not defined");
     }
 
-    const signupToken = jwt.sign(
-      { field: email ? 'email' : 'phone', value: identifier },
+   const signupToken = jwt.sign(
+      { field: email ? 'email' : 'numberphone', value: identifier },
       process.env.JWT_SECRET,
       { expiresIn: '20m' }
     );
