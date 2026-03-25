@@ -7,8 +7,6 @@ const ResetToken = require('../models/resetTokenModel');
 const { v4: uuidv4 } = require('uuid');
 const sendSms = require('../utils/sendSMS'); 
 
-// --- Signup OTP (used during signup email verification) ---
-
 const mongoose = require('mongoose');
 
 
@@ -16,7 +14,7 @@ const mongoose = require('mongoose');
 
 exports.sendSignupOtp = async (req, res) => {
   try {
-    // defensive: ensure JSON body was parsed
+    
     if (!req.body || Object.keys(req.body).length === 0) {
       console.error('sendSignupOtp: empty request body or invalid JSON. content-type=', req.headers['content-type']);
       return res.status(400).json({ message: 'Body empty or invalid. Ensure Content-Type: application/json and a JSON body is sent.' });
