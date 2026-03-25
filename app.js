@@ -12,6 +12,7 @@ const swaggerDocument = require('./swagger-output.json');
 const devisRouter = require('./routes/devisRoutes');
 const specialtyRouter = require('./routes/specialityRouter');
 const locationRoutes = require('./routes/locationRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
 const app = express();
 
 // =====================
@@ -39,6 +40,9 @@ app.use('/api/specialties', specialtyRouter);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use('/api/location' , locationRoutes);
+
+// router pour les services
+app.use('/api/service' , serviceRoutes);
 
 // =====================
 // 404 HANDLER
