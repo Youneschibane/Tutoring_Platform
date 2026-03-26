@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const Mail = require('../models/Mail');
 const multer = require('multer');
 const path = require('path');
+
+
+const Mail = require('../models/Mail');
+
 
 // Configuration Multer pour les pièces jointes
 const storage = multer.diskStorage({
