@@ -42,4 +42,4 @@ const mailSchema = new mongoose.Schema({
     sentAt: { type: Date }
 }, { timestamps: true });
 
-module.exports = mongoose.Schema('Mail', mailSchema);
+module.exports = mongoose.model('Mail', mailSchema);
