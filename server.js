@@ -6,6 +6,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+const mailRoute = require('./routes/mails')(io); // On passe l'objet 'io'
 
 const app = express();
 const server = http.createServer(app);
@@ -46,6 +47,7 @@ const messageRoute = require('./routes/messages')(io);
 
 app.use('/api/conversations', conversationRoute);
 app.use('/api/messages', messageRoute);
+app.use('/api/mails', mailRoute); 
 
 // --- 6. CONNEXION MONGODB ---
 mongoose.connect(process.env.MONGO_URI)
