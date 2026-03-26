@@ -7,8 +7,6 @@ const ResetToken = require('../models/resetTokenModel');
 const { v4: uuidv4 } = require('uuid');
 const sendSms = require('../utils/sendSMS'); 
 
-// --- Signup OTP (used during signup email verification) ---
-
 const mongoose = require('mongoose');
 
 
@@ -16,7 +14,7 @@ const mongoose = require('mongoose');
 
 exports.sendSignupOtp = async (req, res) => {
   try {
-    // defensive: ensure JSON body was parsed
+    
     if (!req.body || Object.keys(req.body).length === 0) {
       console.error('sendSignupOtp: empty request body or invalid JSON. content-type=', req.headers['content-type']);
       return res.status(400).json({ message: 'Body empty or invalid. Ensure Content-Type: application/json and a JSON body is sent.' });
@@ -47,7 +45,7 @@ exports.sendSignupOtp = async (req, res) => {
     const identifier = email || phone;
     const purpose = 'signup';
 
-    const existingUser = await User.findOne(email ? { email } : { phone });
+       const existingUser = await User.findOne(email ? { email } : { numberphone: phone });
     if (existingUser) {
       return res.status(400).json({ message: "Ce contact est déjà utilisé pour un compte existant." });
     }
@@ -150,8 +148,8 @@ exports.sendSignupOtp = async (req, res) => {
       throw new Error("JWT_SECRET is not defined");
     }
 
-    const signupToken = jwt.sign(
-      { field: email ? 'email' : 'phone', value: identifier },
+   const signupToken = jwt.sign(
+      { field: email ? 'email' : 'numberphone', value: identifier },
       process.env.JWT_SECRET,
       { expiresIn: '20m' }
     );
