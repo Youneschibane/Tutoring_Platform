@@ -233,11 +233,40 @@ const addSession = async (req, res) => {
   }
 };
 
+
+const getServiceSessions = async (req, res) => {
+  try {
+    const { id_service } = req.query;
+
+    if (!id_service) {
+      return res.status(400).json({ status: "fail", message: "ID service requis." });
+    }
+
+    const sessions = await Session.find({ service: id_service }) 
+      .sort({ date_seance: 1, heure_debut: 1 });
+
+    if (!sessions || sessions.length === 0) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Aucun créneau trouvé pour ce service."
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      results: sessions.length,
+      data: sessions
+    });
+
+  } catch (error) {
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
 module.exports = {
   getProfSubjects,
   createService , 
   getMyservice, 
-  addSession
-
+  addSession,
+  getServiceSessions
 }
 
