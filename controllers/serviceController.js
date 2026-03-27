@@ -47,7 +47,7 @@ const createService = async (req, res) => {
   try {
     const { id_enseignant } = req.body;
 
-    const profFound = await Teacher.findOne({ id_enseignant: id_enseignant });
+    const profFound = await prof.findOne({ id_enseignant: id_enseignant });
     // if le prof existe
     if (!profFound) {
       return res.status(404).json({ 
@@ -73,7 +73,7 @@ const createService = async (req, res) => {
 
   } catch (error) {
     res.status(400).json({ 
-      status: 'fail hhh', 
+      status: 'fail', 
       message: error.message 
     });
   }
