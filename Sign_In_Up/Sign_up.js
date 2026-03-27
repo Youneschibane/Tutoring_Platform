@@ -1,6 +1,7 @@
 const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
+const Parent = require('../models/parentModel');
 const Admin = require('../models/adminModel');
 const Device = require('../models/deviceModel');
 const getNextId = require('../generateID/nextID');
@@ -52,7 +53,8 @@ exports.completeProfile = async (req, res) => {
     }
 
     // Determine contact field (email or numberphone)
-    const contact = { [decoded.field]: decoded.value };
+    const contactField = decoded.field === 'phone' ? 'numberphone' : decoded.field;
+    const contact = { [contactField]: decoded.value };
 
     // Check if user already exists with this contact info
     const existingUser = await User.findOne(contact).session(session);
@@ -103,7 +105,6 @@ exports.completeProfile = async (req, res) => {
           break;
         }
       case 'student':
-      case 'parent':
         {
           const student = new Student({ 
             ...specificProfileData, 
@@ -111,6 +112,16 @@ exports.completeProfile = async (req, res) => {
           });
           await student.save({ session });
           specificData = student;
+          break;
+        }
+      case 'parent':
+        {
+          const parent = new Parent({ 
+            ...specificProfileData, 
+            id_parent: idmembre 
+          });
+          await parent.save({ session });
+          specificData = parent;
           break;
         }
       case 'admin':
@@ -247,6 +258,9 @@ exports.completeProfile = async (req, res) => {
     // Handle specific error types
     if (error.message.includes('duplicate key')) {
       statusCode = 409;
+      const fieldMatch = error.message.match(/index: (.*?)_1/);
+      const duplicateField = fieldMatch ? fieldMatch[1] : 'unknown';
+      console.error(`Duplicate key error on field: ${duplicateField}`);
       message = 'Email or phone number already registered';
     } else if (error.message.includes('validation')) {
       statusCode = 422;
