@@ -13,4 +13,6 @@ router.post('/addSession' , serviceMethods.addSession);
 
 router.get('/mesSeances' , serviceMethods.getServiceSessions);
 
+router.post('/modify' , serviceMethods.updateService);
+
 module.exports = router;
