@@ -1,4 +1,4 @@
-const service = require('../models/serviceModel');
+const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
 
 
@@ -79,12 +79,57 @@ const createService = async (req, res) => {
   }
 };
 
- 
+const getMyservice = async (req , res) => 
+  {
+
+  try{
+  const {id_enseignant} = req.query;
+
+
+  //if le id du prof n est pas valide 
+  if (!id_enseignant) {
+    return res.status(400).json({
+      success: false,
+      message: "L'identifiant du prof  est requis."
+    });
+  }
+  // geting the services 
+  const services = await Service.find({ id_enseignant: id_enseignant }).sort({ date_creation: -1 });
+
+  if (!services || services.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: "Cet enseignant ne propose aucun service."
+    });
+  }
+
+    return res.status(200).json({
+      success: true,
+      count: services.length,
+      data: services
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Erreur lors de la récupération des services",
+      error: error.message
+    });
+  }
+}
+
+const addSession = async ()=>{
+  
+}
+
+
 
 module.exports = { createService };
 
 module.exports = {
   getProfSubjects,
-  createService 
+  createService , 
+  getMyservice
+
 }
 
