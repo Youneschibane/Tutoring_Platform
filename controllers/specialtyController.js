@@ -118,7 +118,6 @@ const getSubjectByNature = async (req, res) => {
 };
 
 
-
 const getYears = async (req, res) => {
   try {
     const { cycle } = req.query;
