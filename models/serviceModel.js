@@ -17,7 +17,7 @@ let service=new mongoose.Schema({
   nom_service:{type:String,required:true},
 
 
-  type_service:{type:String,required:true,enum:["Individuel","Groupe","Preparation_examen"]},
+  type_service:{type:String,required:true,enum:["Individuel","Groupe"]},
 
 
   
