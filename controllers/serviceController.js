@@ -262,11 +262,69 @@ const getServiceSessions = async (req, res) => {
     res.status(500).json({ status: "error", message: error.message });
   }
 };
+
+const updateService = async (req, res) => {
+  try {
+    const { id_service } = req.query;
+    const { id_enseignant_auth, ...updates } = req.body;
+ 
+    
+    const service = await Service.findOne({ id_service });
+
+        if (!service) {
+      return res.status(404).json({ status: "fail", message: "Service introuvable!" });
+    }
+
+    if (Number(service.id_enseignant) !== Number(id_enseignant_auth)) {
+      return res.status(403).json({ 
+        status: "fail", 
+        message: "Sécurité : Tentative de modification d'un service tiers détectée!" 
+      });
+    }
+
+        if (service.actif === false) {
+      return res.status(400).json({ 
+        status: "fail", 
+        message: "Un service archivé ne peut plus être modifié!" 
+      });
+    }
+
+
+
+    const forbiddenFields = ['id_service', 'id_enseignant', '_id', 'date_creation'];
+    forbiddenFields.forEach(field => delete updates[field]);
+
+
+    if (updates.prix !== undefined && updates.prix < 0) {
+      return res.status(400).json({ status: "fail", message: "Le prix ne peut pas être négatif." });
+    }
+
+    Object.assign(service, updates);
+
+    await service.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Service mis à jour avec succès et contrôles de sécurité validés.",
+      data: service
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Erreur interne lors de la mise à jour",
+      error: error.message
+    });
+  }
+};
+
+
 module.exports = {
   getProfSubjects,
   createService , 
   getMyservice, 
   addSession,
-  getServiceSessions
+  getServiceSessions,
+  updateService
 }
 
