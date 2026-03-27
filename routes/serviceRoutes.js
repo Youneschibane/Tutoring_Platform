@@ -11,4 +11,6 @@ router.get('/mesServices' , serviceMethods.getMyservice);
 
 router.post('/addSession' , serviceMethods.addSession);
 
+router.get('/mesSeances' , serviceMethods.getServiceSessions);
+
 module.exports = router;
