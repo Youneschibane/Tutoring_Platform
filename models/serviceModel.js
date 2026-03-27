@@ -42,12 +42,6 @@ let service=new mongoose.Schema({
 
 
   actif:{type:Boolean,required:true},
-  modalite_service: {
-  type: String,
-  enum: ["online","onsite","both"],
-  required: true
-},
-
 
   date_creation:{type:Date,default:Date.now}
 })
