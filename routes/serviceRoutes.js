@@ -9,4 +9,6 @@ router.post('/create' , serviceMethods.createService);
 
 router.get('/mesServices' , serviceMethods.getMyservice);
 
+router.post('/addSession' , serviceMethods.addSession);
+
 module.exports = router;

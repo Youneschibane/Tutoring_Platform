@@ -1,6 +1,6 @@
 const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
-
+const Session = require('../models/sessionModel');
 
 const getProfSubjects = async (req, res) => {
   const { id } = req.query;
@@ -118,18 +118,71 @@ const getMyservice = async (req , res) =>
   }
 }
 
-const addSession = async ()=>{
-  
-}
+const addSession = async (req, res) => {
+  try {
+    const { 
+      id_enseignant, 
+      id_service, 
+      date_seance, 
+      heure_debut, 
+      heure_fin, 
+      mode,
+      type_seance,
+      nombre_max_participants,
+      lieu,
+      lien_visio,
+      notes_enseignant
+    } = req.body;
 
+    const tuteur = await prof.findOne({ id_enseignant: id_enseignant });
+    const serviceFound = await Service.findOne({ id_service: id_service });
 
+    if (!tuteur || !serviceFound) {
+      return res.status(404).json({
+        status: "fail",
+        message: "L'enseignant ou le service n'existe pas dans la base de données."
+      });
+    }
 
-module.exports = { createService };
+    const newSeance = new Session({
+      service: serviceFound._id, 
+      enseignant: tuteur._id,
+      
+      date_seance,
+      heure_debut,
+      heure_fin,
+      mode,
+      type_seance: type_seance ,
+      nombre_max_participants: nombre_max_participants || serviceFound.nombre_max_participants,
+      lieu,
+      lien_visio,
+      notes_enseignant,
+      statut: "en_attente"
+    });
+
+    await newSeance.save();
+
+    res.status(201).json({
+      status: "success",
+      message: "Séance ajoutée avec succès",
+      data: newSeance
+    });
+
+  } catch (error) {
+    res.status(400).json({
+      status: "fail",
+      message: "Erreur lors de la création de la séance",
+      error: error.message
+    });
+  }
+};
+
 
 module.exports = {
   getProfSubjects,
   createService , 
-  getMyservice
+  getMyservice, 
+  addSession
 
 }
 
