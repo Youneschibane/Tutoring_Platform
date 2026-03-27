@@ -123,6 +123,7 @@ const addSession = async (req, res) => {
     const { 
       id_enseignant, 
       id_service, 
+      titre, 
       date_seance, 
       heure_debut, 
       heure_fin, 
@@ -131,8 +132,23 @@ const addSession = async (req, res) => {
       nombre_max_participants,
       lieu,
       lien_visio,
-      notes_enseignant
+      notes_enseignant,
+      prix
     } = req.body;
+
+    if (mode === "presentiel" && !lieu) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Pour une séance en présentiel, le lieu est obligatoire."
+      });
+    }
+
+    if (mode === "en_ligne" && !lien_visio) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Pour une séance en ligne, le lien de visio est obligatoire."
+      });
+    }
 
     const tuteur = await prof.findOne({ id_enseignant: id_enseignant });
     const serviceFound = await Service.findOne({ id_service: id_service });
@@ -140,24 +156,64 @@ const addSession = async (req, res) => {
     if (!tuteur || !serviceFound) {
       return res.status(404).json({
         status: "fail",
-        message: "L'enseignant ou le service n'existe pas dans la base de données."
+        message: "L'enseignant ou le service n'existe pas."
+      });
+    }
+    // on doit tester si le service est lancé par ce prof 
+    if (serviceFound.id_enseignant !== id_enseignant) {
+      return res.status(403).json({
+        status: "fail",
+        message: "Action interdite : Ce service n'appartient pas à cet enseignant."
+      });
+    }
+
+    // verifie si la date est dans le future 
+    if (new Date(date_seance) < new Date().setHours(0,0,0,0)) {
+    return res.status(400).json({
+      status: "fail",
+      message: "On ne peut pas créer une séance dans le passé."
+    });
+    }
+
+  if (heure_fin <= heure_debut) {
+  return res.status(400).json({
+    status: "fail",
+    message: "L'heure de fin doit être après l'heure de début."
+  });
+  }
+
+  // test crucial : si il ya deja une par le mm prof (n impotre quel service) seance on peut pas le crer 
+
+  const conflit = await Session.findOne({
+      enseignant: tuteur._id,
+      date_seance: date_seance,
+      $or: [
+        { heure_debut: { $lt: heure_fin }, heure_fin: { $gt: heure_debut } }
+      ]
+    });
+
+    if (conflit) {
+      return res.status(400).json({
+        status: "fail",
+        message: `Conflit d'horaire ! Vous avez déjà la séance "${conflit.titre}" de ${conflit.heure_debut} à ${conflit.heure_fin}.`
       });
     }
 
     const newSeance = new Session({
+      titre, 
       service: serviceFound._id, 
       enseignant: tuteur._id,
-      
       date_seance,
       heure_debut,
       heure_fin,
       mode,
-      type_seance: type_seance ,
+      type_seance,
       nombre_max_participants: nombre_max_participants || serviceFound.nombre_max_participants,
-      lieu,
-      lien_visio,
+      lieu: mode === "presentiel" ? lieu : undefined,
+      lien_visio: mode === "en_ligne" ? lien_visio : undefined,
       notes_enseignant,
-      statut: "en_attente"
+      statut: "libre",
+      prix
     });
 
     await newSeance.save();
@@ -171,12 +227,11 @@ const addSession = async (req, res) => {
   } catch (error) {
     res.status(400).json({
       status: "fail",
-      message: "Erreur lors de la création de la séance",
+      message: "Erreur lors de la création",
       error: error.message
     });
   }
 };
-
 
 module.exports = {
   getProfSubjects,
