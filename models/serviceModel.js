@@ -43,7 +43,12 @@ let service=new mongoose.Schema({
 
   actif:{type:Boolean,required:true},
 
-  date_creation:{type:Date,default:Date.now}
+  date_creation:{type:Date,default:Date.now},
+
+  isDeleted:{
+    type : Boolean,
+    required: true
+  }
 })
 
 service.index({ matiere: 1 });

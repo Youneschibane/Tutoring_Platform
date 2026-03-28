@@ -61,7 +61,9 @@ const createService = async (req, res) => {
 
     const newService = new Service({
       id_service: nextId,
+      isDeleted : false,
       ...req.body
+
     });
 
     await newService.save();
@@ -94,7 +96,7 @@ const getMyservice = async (req , res) =>
     });
   }
   // geting the services 
-  const services = await Service.find({ id_enseignant: id_enseignant }).sort({ date_creation: -1 });
+  const services = await Service.find({ id_enseignant: id_enseignant , isDeleted : false}).sort({ date_creation: -1 });
 
   if (!services || services.length === 0) {
     return res.status(404).json({
@@ -381,6 +383,8 @@ if (String(seance.enseignant) !== String(id_enseignant_auth)) {
     res.status(400).json({ status: "fail", message: error.message });
   }
 };
+
+
 
 module.exports = {
   getProfSubjects,
