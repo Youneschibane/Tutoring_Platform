@@ -17,4 +17,6 @@ router.post('/modifyService' , serviceMethods.updateService);
 
 router.post('/modifySession' , serviceMethods.updateSession);
 
+router.post('/deleteService' , serviceMethods.deleteService);
+
 module.exports = router;
