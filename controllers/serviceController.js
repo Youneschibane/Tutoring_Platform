@@ -384,6 +384,66 @@ if (String(seance.enseignant) !== String(id_enseignant_auth)) {
   }
 };
 
+const deleteService = async (req , res)=> {
+try {
+    const { id_service } = req.query;
+    const { id_enseignant_auth } = req.body;
+
+    const service = await Service.findOne({ id_service });
+    if (!service) return res.status(404).json({ status: "fail", message: "Service introuvable." });
+
+    if (service.id_enseignant !== id_enseignant_auth) {
+      return res.status(403).json({ status: "fail", message: "Accès refusé." });
+    }
+
+    const seances = await Session.find({ service: service._id });
+
+    // Vérifier s'il y a des séances "Engagées" (Confirmées ou Reportées)
+    const aDesEngagements = seances.some(s => 
+      s.statut === "confirmee" || s.statut === "reportee"
+    );
+
+    if (aDesEngagements) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Suppression impossible : vous avez des séances confirmées ou reportées. Gérez-les d'abord."
+      });
+    }
+
+    // si le service est "Vierge" 
+    const estVierge = seances.every(s => s.etudiants.length === 0);
+
+    if (estVierge) {
+      // Suppression Physique
+      await Session.deleteMany({ service: service._id });
+      await Service.deleteOne({ _id: service._id });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Service vierge et ses créneaux supprimés définitivement."
+      });
+    } else {
+      service.actif = false;
+      service.isDeleted = true;
+      await service.save();
+
+      // si il ya des sceance libre on vas les annulées 
+      await Session.updateMany(
+        { service: service._id, statut: "libre" },
+        { $set: { statut: "annulée", motif_annulation: "Service supprimé par le professeur" } }
+      );
+
+      return res.status(200).json({
+        status: "success",
+        message: "Service archivé avec succès."
+      });
+    }
+
+  } catch (error) {
+    res.status(500).json({ status: "error", message: error.message });
+  }
+}
+
 
 
 module.exports = {
@@ -393,6 +453,7 @@ module.exports = {
   addSession,
   getServiceSessions,
   updateService,
-  updateSession
+  updateSession, 
+  deleteService
 }
 
