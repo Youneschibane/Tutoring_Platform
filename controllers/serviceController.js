@@ -319,12 +319,76 @@ const updateService = async (req, res) => {
 };
 
 
+const updateSession = async (req, res) => {
+  try {
+    const { id_seance } = req.query;
+    const { id_enseignant_auth, ...updates } = req.body;
+
+    const seance = await Session.findById(id_seance);
+    if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
+
+    // on doit vérifier si la séance est trop proche (Moins de 2h)
+
+    const debutSeance = new Date(`${seance.date_seance}T${seance.heure_debut}:00`);
+    const now = new Date();
+    
+    const differenceMS = debutSeance - now;
+    const deuxHeuresEnMS = 2 * 60 * 60 * 1000;
+
+    if (differenceMS < deuxHeuresEnMS && differenceMS > 0 && seance.mode === "presentiel") {
+      return res.status(400).json({
+        status: "fail",
+        message: "Modification impossible : la séance commence dans moins de 2 heures et elle présentiel ou dans le passé"
+      });
+    }
+
+if (differenceMS < 0) {
+  return res.status(400).json({
+    status: "fail",
+    message: "Action impossible : Cette séance est déjà terminée ou en cours."
+  });
+}
+
+if (String(seance.enseignant) !== String(id_enseignant_auth)) {
+    return res.status(403).json({ status: "fail", message: "Accès refusé." });
+}
+    if (updates.date_seance || updates.heure_debut || updates.heure_fin) {
+      const d = updates.date_seance || seance.date_seance;
+      const h_debut = updates.heure_debut || seance.heure_debut;
+      const h_fin = updates.heure_fin || seance.heure_fin;
+
+      const conflit = await Session.findOne({
+        _id: { $ne: seance._id },
+        enseignant: id_enseignant_auth,
+        date_seance: d,
+        $or: [{ heure_debut: { $lt: h_fin }, heure_fin: { $gt: h_debut } }]
+      });
+
+      if (conflit) {
+        return res.status(400).json({
+          status: "fail",
+          message: `Conflit d'horaire avec la séance "${conflit.titre}".`
+        });
+      }
+    }
+
+    Object.keys(updates).forEach(key => seance[key] = updates[key]);
+    await seance.save();
+
+    res.status(200).json({ status: "success", data: seance });
+
+  } catch (error) {
+    res.status(400).json({ status: "fail", message: error.message });
+  }
+};
+
 module.exports = {
   getProfSubjects,
   createService , 
   getMyservice, 
   addSession,
   getServiceSessions,
-  updateService
+  updateService,
+  updateSession
 }
 

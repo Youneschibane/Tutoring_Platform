@@ -46,12 +46,6 @@ const seanceSchema = new mongoose.Schema({
     default: 1
   },
 
-  type_seance: {
-    type: String,
-    enum: ["privee", "groupe"],
-    default: "privee"
-  },
-
   mode: {
     type: String,
     enum: ["presentiel", "en_ligne"],
