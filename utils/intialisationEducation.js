@@ -15,6 +15,10 @@ const Data = [
 
   // -------------------------------------------------------------------------
   { cycle: "Moyen", level: 1, levelName: "1AM", subjects: ["Arabe", "Français", "Anglais", "Mathématiques", "SVT", "Physique", "Histoire-Géo", "Éducation Islamique", "Informatique"] },
+    { cycle: "Moyen", level: 2, levelName: "2AM", subjects: ["Arabe", "Français", "Anglais", "Mathématiques", "SVT", "Physique", "Histoire-Géo", "Éducation Islamique", "Informatique"] },
+  { cycle: "Moyen", level: 3, levelName: "3AM", subjects: ["Arabe", "Français", "Anglais", "Mathématiques", "SVT", "Physique", "Histoire-Géo", "Éducation Islamique", "Informatique"] },
+  { cycle: "Moyen", level: 4, levelName: "4AM", subjects: ["Arabe", "Français", "Anglais", "Mathématiques", "SVT", "Physique", "Histoire-Géo", "Éducation Islamique", "Informatique"] },
+
   // -------------------------------------------------------------------------
   { cycle: "Secondaire", level: 1, levelName: "1AS", specialty: "Sciences et Technologies", subjects: ["Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ,"Génie Civil" , "Éducation Islamique", "Technologie"] },
   { cycle: "Secondaire", level: 1, levelName: "1L", specialty: "Lettres", subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ] },

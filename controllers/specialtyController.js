@@ -10,7 +10,6 @@ const getSubjectsByCycle = async (req, res) => {
 
       if (niveau) {
         filter.levelName = niveau;
-        
         if (niveau === "2CS" && specialité) {
           filter.specialty = specialité.toUpperCase();
         }
@@ -119,9 +118,55 @@ const getSubjectByNature = async (req, res) => {
 };
 
 
+const getYears = async (req, res) => {
+  try {
+    const { cycle } = req.query;
+
+    if (!cycle) {
+      return res.status(400).json({ message: "Le paramètre 'cycle' est obligatoire." });
+    }
+
+    const results = await Specialty.find({ cycle: cycle });
+
+    if (!results || results.length === 0) {
+      return res.status(404).json({ message: "Aucune donnée trouvée pour ce cycle." });
+    }
+
+    const structure = {};
+
+    results.forEach(doc => {
+      const level = doc.levelName;
+      const spec = doc.specialty;
+
+      if (!structure[level]) {
+        structure[level] = [];
+      }
+
+      if (spec && spec !== "" && !structure[level].includes(spec)) {
+        structure[level].push(spec);
+      }
+    });
+
+    const finalData = Object.keys(structure).map(level => ({
+      level: level,
+      specialties: structure[level] 
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      cycle: cycle,
+      data: finalData
+    });
+
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 module.exports = {
   getSubjectsByCycle,
   getEsiSpeciality,
   getEsiYears,
-  getSubjectByNature
+  getSubjectByNature, 
+  getYears
 };
