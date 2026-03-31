@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 
-
-
 let service=new mongoose.Schema({
 
   id_service:{
     type:Number
-    ,required:true
+    ,required:true,
+    unique:true
   },
 
 
@@ -18,19 +17,19 @@ let service=new mongoose.Schema({
   nom_service:{type:String,required:true},
 
 
-  type_service:{type:String,required:true,enum:["Individuel","Groupe","Preparation_examen"]},
+  type_service:{type:String,required:true,enum:["Individuel","Groupe"]},
 
 
   
   matiere:{type:String,required:true},
 
   
-  niveau_concerne:{type:String,required:true,enum:["Primaire","Collège","Lycée","Université"]},
+  niveau_concerne:{type:String,required:true,enum:["Primaire","Collège","Lycée","ESI"]},
 
+  annee_concerne:{type:String , required:true},
 
 
   nombre_max_participants:{type:Number,required:true},
-
 
 
   prix:{type:Number,required:true},
@@ -39,21 +38,17 @@ let service=new mongoose.Schema({
   duree_seance:{type:Number,required:true},
 
 
-
-
   description:{type:String,required:true},
 
 
-
   actif:{type:Boolean,required:true},
-  modalite_service: {
-  type: String,
-  enum: ["online","onsite","both"],
-  required: true
-},
 
+  date_creation:{type:Date,default:Date.now},
 
-  date_creation:{type:Date,default:Date.now}
+  isDeleted:{
+    type : Boolean,
+    required: true
+  }
 })
 
 service.index({ matiere: 1 });

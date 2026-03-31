@@ -20,6 +20,13 @@ const seanceSchema = new mongoose.Schema({
     required: true
   },
 
+  titre : {
+    type : String,
+    required : true,
+  }
+  ,
+
+
   etudiants: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Etudiant"
@@ -45,12 +52,6 @@ const seanceSchema = new mongoose.Schema({
     default: 1
   },
 
-  type_seance: {
-    type: String,
-    enum: ["privee", "groupe"],
-    default: "privee"
-  },
-
   mode: {
     type: String,
     enum: ["presentiel", "en_ligne"],
@@ -64,12 +65,18 @@ const seanceSchema = new mongoose.Schema({
   lien_visio: {
     type: String
   },
+  prix: {
+    type : Number,
+    required : true
+  },
 
   statut: {
     type: String,
-    enum: ["en_attente", "confirmee", "annulee", "terminee", "reportee"],
-    default: "en_attente"
+    enum: ["libre", "confirmee", "annulee", "assuree", "reportee"],
+    default: "libre"
   },
+
+
 
   notes_enseignant: {
     type: String

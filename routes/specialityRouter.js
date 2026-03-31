@@ -10,4 +10,7 @@ router.get('/list' , specialtyController.getEsiSpeciality);
 
 router.get('/nature' , specialtyController.getSubjectByNature);
 
+router.get('/annee' , specialtyController.getYears);
+
+
 module.exports = router;
