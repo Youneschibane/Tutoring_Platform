@@ -74,7 +74,7 @@ const seanceSchema = new mongoose.Schema({
 
   notes_enseignant: {
     type: String
-  }
+  },
 
 }, { timestamps: true });
 

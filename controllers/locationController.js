@@ -28,6 +28,6 @@ const getCommuneByWillaya = async (req, res) => {
     res.status(200).json({ status: 'success', communes });
 };
 module.exports = {
-  getWillaya , 
-  getCommuneByWillaya
+    getWillaya , 
+    getCommuneByWillaya
 }
