@@ -1,6 +1,11 @@
 const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
 const Session = require('../models/sessionModel');
+const multer = require('multer');
+const storage = require('../claudinaryConfig');
+const upload = multer({ storage: storage });
+
+
 
 const getProfSubjects = async (req, res) => {
   const { id } = req.query;
@@ -496,6 +501,7 @@ const deleteSession = async (req, res) => {
   }
 };
 
+
 module.exports = {
   getProfSubjects,
   createService , 
@@ -505,6 +511,6 @@ module.exports = {
   updateService,
   updateSession, 
   deleteService,
-  deleteSession
+  deleteSession,
 }
 

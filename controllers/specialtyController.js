@@ -80,7 +80,7 @@ const getEsiSpeciality = async (req, res) => {
 const getSubjectByNature = async (req, res) => {
   const { cycle, nature } = req.query;
 
-  if (cycle?.toLowerCase() === 'secondaire') {
+  if (cycle?.toLowerCase() === 'Lycee') {
     let subjects = [];
 
     switch (nature?.toLowerCase()) {
@@ -105,7 +105,7 @@ const getSubjectByNature = async (req, res) => {
 
     return res.status(200).json({
       status: 'success',
-      cycle: "Secondaire",
+      cycle: "Lycee",
       nature: nature,
       subjects: subjects
     });
@@ -113,7 +113,7 @@ const getSubjectByNature = async (req, res) => {
 
   return res.status(400).json({ 
     status: 'fail', 
-    message: "Le cycle doit être 'secondaire' pour cette fonction." 
+    message: "Le cycle doit être 'Lycee' pour cette fonction." 
   });
 };
 
