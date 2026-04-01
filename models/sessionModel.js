@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
+const Counter = require("./counterModel");
 
 const seanceSchema = new mongoose.Schema({
+
+  id_seance: {
+    type: Number,
+    unique: true
+  },
 
   service: {
     type: mongoose.Schema.Types.ObjectId,
@@ -77,5 +83,18 @@ const seanceSchema = new mongoose.Schema({
   },
 
 }, { timestamps: true });
+
+//  Auto-increment adapté à ton counterModel
+seanceSchema.pre("save", async function (next) {
+  if (this.isNew) {
+    const counter = await Counter.findByIdAndUpdate(
+      "seances",            // _id du compteur
+      { $inc: { seq: 1 } }, // incrémenter seq de 1
+      { new: true, upsert: true }
+    );
+    this.id_seance = counter.seq;
+  }
+  next();
+});
 
 module.exports = mongoose.model("Seance", seanceSchema);

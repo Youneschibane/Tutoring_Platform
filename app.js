@@ -13,6 +13,15 @@ const devisRouter = require('./routes/devisRoutes');
 const specialtyRouter = require('./routes/specialityRouter');
 const locationRoutes = require('./routes/locationRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
+
+
+const documentRoutes = require('./routes/documentRoutes');
+
+
+
+
+
+
 const app = express();
 
 // =====================
@@ -43,6 +52,10 @@ app.use('/api/location' , locationRoutes);
 
 // router pour les services
 app.use('/api/service' , serviceRoutes);
+
+
+//router pour les documents
+app.use('/api/documents', documentRoutes); 
 
 // =====================
 // 404 HANDLER

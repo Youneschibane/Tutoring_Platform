@@ -1,46 +1,53 @@
 const mongoose = require('mongoose');
 
+const documentSchema = new mongoose.Schema({
 
+  enseignant: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Teacher",
+    required: true
+  },
 
-let document_pedagogique=new mongoose.Schema({
+  service: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service"
+  },
 
+  seance: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Seance"
+  },
 
+  access_type: {
+    type: String,
+    enum: ["public", "private"],
+    required: true
+  },
 
-  id_document:{type:Number,required:true},
+  type_document: {
+    type: String,
+    enum: ["Support_cours", "Exercice", "Correction", "Autre"],
+    required: true
+  },
 
+  nom_fichier: {
+    type: String,
+    required: true
+  },
 
-  id_seance:{type:Number,required:true},
+  chemin_fichier: {
+    type: String,
+    required: true
+  },
 
+  taille_fichier: {
+    type: Number
+  },
 
+  description: {
+    type: String
+  }
 
-  
-  type_document:{type:String,required:true,enum:["Support_cours","Exercice","Correction","Autre"]},
+}, { timestamps: true });
 
-
-
-  nom_fichier:{type:String,required:true},
-
-
-
-  chemin_fichier:{type:String,required:true},
-
-
-
-  taille_fichier:{type:Number,required:true},
-
-
-
-  description:{type:String,required:true},
-
-
-
-  data_ajout:{type:Date,default:Date.now}
-
-
-
-})
-
-
-
-const Document=mongoose.model('Document',document_pedagogique);
-module.exports=Document;
+module.exports = mongoose.model('Document', documentSchema);
