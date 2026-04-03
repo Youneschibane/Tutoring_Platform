@@ -1,9 +1,6 @@
 const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
 const Session = require('../models/sessionModel');
-const multer = require('multer');
-const storage = require('../claudinaryConfig');
-const upload = multer({ storage: storage });
 
 
 
@@ -135,7 +132,6 @@ const addSession = async (req, res) => {
       heure_debut, 
       heure_fin, 
       mode,
-      type_seance,
       nombre_max_participants,
       lieu,
       lien_visio,
