@@ -210,7 +210,6 @@ const addSession = async (req, res) => {
       heure_debut,
       heure_fin,
       mode,
-      type_seance,
       nombre_max_participants: nombre_max_participants || serviceFound.nombre_max_participants,
       lieu: mode === "presentiel" ? lieu : undefined,
       lien_visio: mode === "en_ligne" ? lien_visio : undefined,
