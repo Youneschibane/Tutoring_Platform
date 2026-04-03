@@ -85,7 +85,7 @@ const seanceSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 //  Auto-increment adapté à ton counterModel
-seanceSchema.pre("save", async function (next) {
+seanceSchema.pre("save", async function (/*next*/ ) {
   if (this.isNew) {
     const counter = await Counter.findByIdAndUpdate(
       "seances",            // _id du compteur
@@ -94,7 +94,7 @@ seanceSchema.pre("save", async function (next) {
     );
     this.id_seance = counter.seq;
   }
-  next();
+  /*next*/;
 });
 
 module.exports = mongoose.model("Seance", seanceSchema);
