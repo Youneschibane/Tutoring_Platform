@@ -9,12 +9,15 @@ let eleve=new mongoose.Schema({
   
   },
 
-
+yearOfStudy:{
+    type:Number,
+    required:false
+},
 
 
   niveau_scolaire:{
     type:String,
-    required:true,
+    required:false,
     enum:["Primary","Secondary","High School","University"]
   },
 
@@ -22,7 +25,7 @@ let eleve=new mongoose.Schema({
 
   objectifs_pedagogiques:{
     type:String,
-    required:true
+    required:false
 },
 
 
