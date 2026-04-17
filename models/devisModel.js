@@ -16,12 +16,13 @@ let devis_pedagogique=new mongoose.Schema({
 
 
 
-  matieere:{type:String,required:true},
+  matiere:{type:String,required:true},
 
 
 
-  niveau_scolaire:{type:String,required:true,enum:["Primaire","Moyen","Secondaire","ESI"]},
+  niveau_scolaire:{type:String,required:true,enum:["Primaire","Moyen","Lycee","ESI"]},
 
+  annee_scolaire:{type:String,required:true},
 
 
   objectif:{type:String,required:true},

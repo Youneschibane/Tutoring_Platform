@@ -1,5 +1,8 @@
 const Devis = require('../models/devisModel');
 const getNextId = require('../generateID/nextID');
+const Education = require('../models/educationModel');
+const Teacher = require('../models/teacherModel');
+const mongoose = require('mongoose');
 
 const creerDevis = async (req, res) => {
   try {
@@ -7,6 +10,7 @@ const creerDevis = async (req, res) => {
       id_enseignant, 
       matiere, 
       niveau_scolaire, 
+      annee_scolaire, 
       objectif, 
       frequence_souhaite, 
       duree_estimee, 
@@ -15,15 +19,60 @@ const creerDevis = async (req, res) => {
 
     const id_eleve = req.user.idmembre; 
 
+    // On cherche si un devis identique est déjà "En_attente"
+    const devisExistant = await Devis.findOne({
+      id_eleve,
+      id_enseignant,
+      matiere,
+      statut: "En_attente"
+    });
+
+    if (devisExistant) {
+      return res.status(409).json({
+        status: 'fail',
+        message: "Vous avez déjà une demande de devis en attente pour cette matière avec cet enseignant. Veuillez attendre sa réponse."
+      });
+    }
+
+    const enseignant = await Teacher.findOne({ id_enseignant: id_enseignant });
+    if (!enseignant) {
+      return res.status(404).json({
+        status: 'fail',
+        message: "L'enseignant spécifié n'existe pas."
+      });
+    }
+
+    const estQualifie = enseignant.subjects.some(sub => sub.name === matiere);
+    if (!estQualifie) {
+      return res.status(400).json({
+        status: 'fail',
+        message: `L'enseignant ${enseignant.firstname} ne propose pas de cours de ${matiere}.`
+      });
+    }
+
+    // --- 4. CONTRÔLE RÉFÉRENTIEL ÉDUCATION ---
+    const educationRef = await Education.findOne({
+      cycle: niveau_scolaire,
+      levelName: annee_scolaire 
+    });
+
+    if (!educationRef) {
+      return res.status(400).json({
+        status: 'fail',
+        message: "Niveau ou année scolaire invalide selon le programme officiel."
+      });
+    }
+
+    // --- CRÉATION DU DEVIS ---
     const id_devis = await getNextId('devis');
 
-    //Créer l'objet Devis
     const nouveauDevis = new Devis({
       id_devis,
       id_eleve,
       id_enseignant,
       matiere,
       niveau_scolaire,
+      annee_scolaire,
       objectif,
       frequence_souhaite,
       duree_estimee,
@@ -37,16 +86,12 @@ const creerDevis = async (req, res) => {
 
     res.status(201).json({
       status: 'success',
-      message: 'Demande de devis envoyée avec succès à l\'enseignant.',
+      message: 'Demande de devis envoyée avec succès.',
       data: nouveauDevis
     });
 
   } catch (error) {
-    console.error("Erreur création devis:", error);
-    res.status(400).json({
-      status: 'fail',
-      message: error.message
-    });
+    res.status(500).json({ status: 'error', message: error.message });
   }
 };
 
@@ -79,35 +124,44 @@ const getMesDevis = async (req , res) => {
 
 const repondreDevis = async (req, res) => {
   try {
-    const { devisId } = req.params; 
-    const { statut, messageProf, prixPropose } = req.body;
+    const { statut, messageProf, prixPropose, frequence_proposee, duree_proposee } = req.body;
+    const id_prof_connecte = req.user.idmembre;
+    const devisId = parseInt(req.params.id);
+    const devis = await Devis.findOne({ id_devis: devisId });
 
-    if (!['accepte', 'refuse' , 'En_attente'].includes(statut)) {
-      return res.status(400).json({ 
-        message: "Le statut doit être 'accepte' ou 'refuse' ou modifier ." 
-      });
-    }
-
-    const devisMisAJour = await Devis.findByIdAndUpdate(
-      devisId,
-      { 
-        statut, 
-        messageProf, 
-        prixPropose,
-        dateReponse: Date.now() ,
-        repondue : true
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (!devisMisAJour) {
+    if (!devis) {
       return res.status(404).json({ message: "Devis non trouvé." });
     }
 
+    if (devis.id_enseignant !== id_prof_connecte) {
+      return res.status(403).json({ message: "Interdit : Ce n'est pas votre devis." });
+    }
+
+    if (statut === 'accepte' || statut === 'refuse') {
+      devis.statut = statut;
+      devis.repondue = true;
+    } else if (statut === 'En_attente') {
+      // Le prof propose autre chose
+      // On met à jour les champs si fournis, sinon on garde les anciens
+      if (prixPropose) devis.budget_estime = prixPropose;
+      if (frequence_proposee) devis.frequence_souhaite = frequence_proposee;
+      if (duree_proposee) devis.duree_estimee = duree_proposee;
+      devis.repondue = true; 
+      devis.message_negociation = "L'enseignant a proposé de nouvelles conditions.";
+    } else {
+      return res.status(400).json({ message: "Statut invalide. Utilisez 'accepte', 'refuse' ou 'En_attente'." });
+    }
+
+    // Champs communs
+    devis.reponse_enseignant = messageProf;
+    devis.dateReponse = Date.now();
+
+    await devis.save();
+
     res.status(200).json({
       status: 'success',
-      message: `Le devis a été répondu , le statut :  ${statut}.`,
-      data: devisMisAJour
+      message: statut === 'En_attente' ? "Contre-proposition envoyée à l'élève." : `Devis ${statut}.`,
+      data: devis
     });
 
   } catch (error) {

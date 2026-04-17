@@ -15,8 +15,10 @@ let eleve=new mongoose.Schema({
   niveau_scolaire:{
     type:String,
     required:true,
-    enum:["Primary","Secondary","High School","University"]
+    enum:["Primaire","College","Lycee","Esi"]
   },
+
+  
 
 
 
