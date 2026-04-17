@@ -12,5 +12,8 @@ router.get('/nature' , specialtyController.getSubjectByNature);
 
 router.get('/annee' , specialtyController.getYears);
 
+router.get('/prof' , specialtyController.getSubjectsProf);
+
+
 
 module.exports = router;

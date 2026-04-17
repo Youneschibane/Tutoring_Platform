@@ -296,7 +296,7 @@ const getServiceSessions = async (req, res) => {
 
     }
 
-    const sessions = await Session.find({ service: serviceFound._id , isDeleted: false }) 
+    const sessions = await Session.find({ service: serviceFound._id }) 
       .sort({ date_seance: 1, heure_debut: 1 });
 
     if (!sessions || sessions.length === 0) {
