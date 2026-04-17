@@ -1,4 +1,17 @@
 const Specialty = require('../models/educationModel');
+const prof = require("../models/teacherModel");
+const mongoose = require('mongoose');
+
+const getAllowedCycles = (mainCycle) => {
+  const hierarchy = {
+    "Lycee": ["Lycee", "College", "Primaire"],
+    "College": ["College", "Primaire"],
+    "Primaire": ["Primaire"],
+    "ESI": ["ESI"]
+  };
+  return hierarchy[mainCycle] || [mainCycle];
+};
+
 
 const getSubjectsByCycle = async (req, res) => {
   try {
@@ -163,10 +176,49 @@ const getYears = async (req, res) => {
   }
 };
 
+
+const getSubjectsProf = async (req, res) => {
+  try {
+    const { id_enseignant } = req.body; 
+
+    const teacher = await prof.findOne({ id_enseignant: id_enseignant });
+
+    if (!teacher) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Enseignant non trouvé." 
+      });
+    }
+
+    const subjectsWithPermissions = teacher.subjects.map(subj => {
+      const mainCycle = subj.cycle;
+      return {
+        matiere: subj.name,
+        cycleOriginal: mainCycle,
+        cyclesAutorises: getAllowedCycles(mainCycle) 
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      teacherName: `${teacher.firstname} ${teacher.familyname}`,
+      competences: subjectsWithPermissions
+    });
+
+  } catch (error) {
+    return res.status(500).json({ 
+      success: false, 
+      message: "Erreur serveur", 
+      error: error.message 
+    });
+  }
+};
+
 module.exports = {
   getSubjectsByCycle,
   getEsiSpeciality,
   getEsiYears,
   getSubjectByNature, 
-  getYears
+  getYears,
+  getSubjectsProf
 };
