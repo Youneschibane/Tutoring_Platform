@@ -10,5 +10,8 @@ router.post('/demander', protect, restrictTo('student'), devisController.creerDe
 router.patch('/repondre/:id', protect, restrictTo('teacher'), devisController.repondreDevis);
 
 // both can see their devis 
-router.get('/' , devisController.getMesDevis);
+router.get('/Mesdevis' , protect , devisController.getMesDevis);
+
+router.put('/repondreEtud/:id' , protect , restrictTo('student') , devisController.reponseFinaleEtudiant);
+
 module.exports = router;
