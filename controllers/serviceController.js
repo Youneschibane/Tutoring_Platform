@@ -410,12 +410,18 @@ const updateService = async (req, res) => {
 
 const updateSession = async (req, res) => {
   try {
-    const id_enseignant_auth = req.user.idmembre;
     const { id_seance } = req.query;
     const { ...updates } = req.body;
+    const id_enseignant_auth = req.user.idmembre; 
 
-    const seance = await Session.findById(id_seance);
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
+        const seance = await Session.findById(id_seance);
     if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
+
+
+    if (!profDoc || String(seance.enseignant) !== String(profDoc._id)) {
+        return res.status(403).json({ status: "fail", message: "Accès refusé." });
+    }
 
     // on doit vérifier si la séance est trop proche (Moins de 2h)
 
@@ -439,27 +445,25 @@ if (differenceMS < 0) {
   });
 }
 
-if (String(seance.enseignant) !== String(id_enseignant_auth)) {
-    return res.status(403).json({ status: "fail", message: "Accès refusé." });
-}
     if (updates.date_seance || updates.heure_debut || updates.heure_fin) {
       const d = updates.date_seance || seance.date_seance;
       const h_debut = updates.heure_debut || seance.heure_debut;
       const h_fin = updates.heure_fin || seance.heure_fin;
+      const conflit = await Session.findOne({ 
+      _id: { $ne: seance._id }, 
+      enseignant: profDoc._id, 
+      date_seance: d, 
+      $or: [
+        { heure_debut: { $lt: h_fin }, heure_fin: { $gt: h_debut } }
+      ] 
+    });
 
-      const conflit = await Session.findOne({
-        _id: { $ne: seance._id },
-        enseignant: id_enseignant_auth,
-        date_seance: d,
-        $or: [{ heure_debut: { $lt: h_fin }, heure_fin: { $gt: h_debut } }]
+    if (conflit) {
+      return res.status(400).json({ 
+        status: "fail", 
+        message: `Conflit d'horaire avec la séance "${conflit.titre}".` 
       });
-
-      if (conflit) {
-        return res.status(400).json({
-          status: "fail",
-          message: `Conflit d'horaire avec la séance "${conflit.titre}".`
-        });
-      }
+    }
     }
     Object.assign(seance, updates);
     await seance.save();
@@ -535,13 +539,15 @@ const deleteSession = async (req, res) => {
   try {
     const { id_seance } = req.query;
     const { motif_annulation } = req.body;
-    const id_enseignant_auth = req.user.idmembre;
+    const id_enseignant_auth = req.user.idmembre; 
 
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
     const seance = await Session.findById(id_seance);
     if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
 
-    if (String(seance.enseignant) !== String(id_enseignant_auth)) {
-      return res.status(403).json({ status: "fail", message: "Accès refusé : Ce n'est pas votre séance." });
+
+    if (!profDoc || String(seance.enseignant) !== String(profDoc._id)) {
+        return res.status(403).json({ status: "fail", message: "Accès refusé." });
     }
 
     const debutSeance = new Date(`${seance.date_seance}T${seance.heure_debut}:00`);

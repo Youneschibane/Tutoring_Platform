@@ -24,7 +24,9 @@ const creerDevis = async (req, res) => {
       id_eleve,
       id_enseignant,
       matiere,
-      statut: "En_attente"
+      statut: "En_attente",
+      luprof: false, 
+      luEtud: true
     });
 
     if (devisExistant) {
@@ -97,7 +99,7 @@ const creerDevis = async (req, res) => {
 
 const getMesDevis = async (req , res) => {
   try{
-    const userId = req.user._id;
+    const userId = req.user.idmembre;
     const role = req.user.role; 
 
     let query = {};
@@ -137,6 +139,9 @@ const repondreDevis = async (req, res) => {
       return res.status(403).json({ message: "Interdit : Ce n'est pas votre devis." });
     }
 
+    devis.luprof = true;  // Le prof vient de le traiter
+    devis.luEtud = false;
+
     if (statut === 'accepte' || statut === 'refuse') {
       devis.statut = statut;
       devis.repondue = true;
@@ -169,8 +174,34 @@ const repondreDevis = async (req, res) => {
   }
 };
 
+const reponseFinaleEtudiant = async (req, res) => {
+  try {
+    const { action } = req.body; 
+    const devisId = parseInt(req.params.id);
+    const devis = await Devis.findOne({ id_devis: devisId });
+
+    if (!devis) return res.status(404).json({ message: "Devis non trouvé." });
+
+    if (devis.statut !== "En_attente") {
+      return res.status(400).json({ message: "Le statut final a déjà été décidé par le professeur." });
+    }
+
+    devis.statut = action === 'Accepte' ? 'Accepte' : 'Refuse';
+    devis.date_reponse_Etudiant = Date.now();
+    
+    devis.luEtud = true;
+    devis.luprof = false; 
+
+    await devis.save();
+    res.status(200).json({ status: 'success', message: "Décision finale enregistrée.", data: devis });
+  } catch (error) {
+    res.status(500).json({ status: 'fail', message: error.message });
+  }
+};
+
 module.exports = {
   creerDevis, 
   getMesDevis,
-  repondreDevis
+  repondreDevis,
+  reponseFinaleEtudiant
 };
