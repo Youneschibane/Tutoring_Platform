@@ -17,7 +17,7 @@ let service=new mongoose.Schema({
   nom_service:{type:String,required:true},
 
 
-  type_service:{type:String,required:true,enum:["Individuel","Groupe","Preparation_examen"]},
+  type_service:{type:String,required:true,enum:["Individuel","Groupe"]},
 
 
   
@@ -43,7 +43,12 @@ let service=new mongoose.Schema({
 
   actif:{type:Boolean,required:true},
 
-  date_creation:{type:Date,default:Date.now}
+  date_creation:{type:Date,default:Date.now},
+
+  isDeleted:{
+    type : Boolean,
+    required: true
+  }
 })
 
 service.index({ matiere: 1 });
