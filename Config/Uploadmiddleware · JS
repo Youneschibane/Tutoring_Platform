@@ -1,7 +1,6 @@
 const multer            = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary        = require('../Config/Uploadmiddleware · JS');
-
+const cloudinary = require('./Cloudinaryconfig · JS'); 
 // Stocker directement dans Cloudinary (pas de fichier temporaire sur disque)
 const storage = new CloudinaryStorage({
   cloudinary,
