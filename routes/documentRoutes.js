@@ -3,7 +3,7 @@ const router = express.Router();
 
 
 const upload = require('../middleware/upload');
-
+const { isTeacherAccepted } = require('../Sign_In_Up/Sign_up');
 
 // On ajoute les accolades ici pour extraire la fonction de l'objet exporté
 const { addDocument } = require('../gestionDuDocument/addDocument');
@@ -11,8 +11,7 @@ const { getStudentDocuments } = require('../gestionDuDocument/getStudentDocument
 
 
 
-
-router.post('/add', upload.single('fichier'), addDocument);
+router.post('/add', isTeacherAccepted, upload.single('fichier'), addDocument);
 /*
   #swagger.tags = ['Documents']
   #swagger.summary = 'Ajouter un document'
