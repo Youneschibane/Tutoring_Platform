@@ -59,8 +59,10 @@ const signIn = async (req, res) => {
         roleData = await Teacher.findOne({ id_enseignant: user.idmembre });
         break;
       case 'student':
-      case 'parent':
         roleData = await Student.findOne({ id_eleve: user.idmembre });
+        break;
+      case 'parent':
+        roleData = await Parent.findOne({ id_parent: user.idmembre });
         break;
       case 'admin':
         roleData = await Admin.findOne({ id_admin: user.idmembre });

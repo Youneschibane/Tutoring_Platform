@@ -1,0 +1,42 @@
+[
+  {
+    "nom_service": "ipsam provident harum",
+    "prix": 2907,
+    "typeof_prix": "number",
+    "niveau_concerne": "Université",
+    "matiere": "français",
+    "type_service": "Groupe"
+  },
+  {
+    "nom_service": "totam error hic",
+    "prix": 962,
+    "typeof_prix": "number",
+    "niveau_concerne": "Collège",
+    "matiere": "français",
+    "type_service": "Individuel"
+  },
+  {
+    "nom_service": "architecto voluptate quo",
+    "prix": 498,
+    "typeof_prix": "number",
+    "niveau_concerne": "Primaire",
+    "matiere": "français",
+    "type_service": "Groupe"
+  },
+  {
+    "nom_service": "laboriosam fugiat assumenda",
+    "prix": 1158,
+    "typeof_prix": "number",
+    "niveau_concerne": "Collège",
+    "matiere": "physique",
+    "type_service": "Individuel"
+  },
+  {
+    "nom_service": "corrupti odio praesentium",
+    "prix": 1497,
+    "typeof_prix": "number",
+    "niveau_concerne": "Lycée",
+    "matiere": "physique",
+    "type_service": "Groupe"
+  }
+]
