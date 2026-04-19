@@ -28,6 +28,12 @@ const protect = async (req, res, next) => {
       });
     }
 
+    if (user.accepted === false) {
+      return res.status(403).json({
+        message: "Compte non accepté par l'administrateur."
+      });
+    }
+
     req.user = user;
     next();
 

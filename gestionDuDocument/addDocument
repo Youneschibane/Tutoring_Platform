@@ -55,7 +55,6 @@ const addDocument = async (req, res) => {
     }
 
     // ── 3. Vérification cohérence access_type ↔ service/séance ─────────────
-   
     if (access_type === "public" && !service) {
       return res.status(400).json({
         message: "Le service est obligatoire pour un document public"
@@ -86,7 +85,9 @@ const addDocument = async (req, res) => {
         return res.status(404).json({ message: "Service introuvable" });
       }
 
-      if (existingService.id_enseignant !== teacher_id) {
+      // FIX: utilisation des ObjectId MongoDB pour une comparaison fiable
+      // (aligné avec la vérification de la séance plus bas)
+      if (existingService.enseignant.toString() !== teacherMongoId.toString()) {
         return res.status(403).json({
           message: "Vous n'êtes pas autorisé à ajouter des documents à ce service"
         });
@@ -110,7 +111,6 @@ const addDocument = async (req, res) => {
 
       seanceMongoId = existingSession._id;
 
-    
       if (!existingSession.service) {
         return res.status(400).json({
           message: "Cette séance n'est associée à aucun service"
@@ -147,10 +147,9 @@ const addDocument = async (req, res) => {
       description: description || null
     });
 
- 
     await newDocument.populate([
-      { path: 'service', select: 'nom description' },
-      { path: 'seance',  select: 'date_seance statut' },
+      { path: 'service',    select: 'nom description' },
+      { path: 'seance',     select: 'date_seance statut' },
       { path: 'enseignant', select: 'firstname familyname' }
     ]);
 
@@ -163,10 +162,10 @@ const addDocument = async (req, res) => {
     console.error("Erreur lors de l'ajout du document :", error);
     return res.status(500).json({
       message: "Erreur serveur lors de l'ajout du document",
-      
       ...(process.env.NODE_ENV === 'development' && { detail: error.message })
     });
   }
 };
 
-module.exports = addDocument;
+// FIX: export objet pour cohérence avec les autres controllers
+module.exports = { addDocument };
