@@ -1,60 +1,55 @@
 const mongoose = require('mongoose');
 
-const enseignant = new mongoose.Schema({
+let enseignant=new mongoose.Schema({
 
-  id_enseignant: {
-    type: Number,
-    required: true,
-    unique: true
+
+  id_enseignant:{
+    type:Number,
+    required:true
   },
 
-  nature: {
-    type: String,
-    required: true,
-    enum: ["Independant", "Etablissement", "Center"]
+  nature:{type:String
+    ,required:true
+    ,enum:["Independant","Etablissement","Centre"]
   },
 
-  
-  location: {
-    type: {
-      type: String,
-      enum: ["Point"],
-      default: "Point"
-    },
-    coordinates: {
-      type: [Number], // [lng, lat]
-      required: true
-    }
+
+  latitude:{type:Number,
+    required:true
   },
 
-  deplacement: {
-    type: Boolean,
-    required: true
+
+
+  longitude:{type:Number
+    ,required:true
   },
 
-  rayon_deplacement: {
-    type: Number,
-    required: true // meters
+
+
+  deplacment:{
+    type:Boolean,
+    required:true
   },
 
-  description_pedagogique: {
-    type: String,
-    required: true
+
+
+
+  rayon_deplacement:{
+    type:Number,
+    required:true
   },
 
-  parcours_academique: {
-    type: String,
-    required: true
+
+
+  desciption_pedagogique:{
+    type:String,
+    required:true
   },
 
-  experience_professionnelle: {
-    type: String,
-    required: true
-  },
 
-  certifications: {
-    type: String,
-    required: true
+  certifications:{
+    type:String
+    ,required:true
   },
 
   actif: {
@@ -78,10 +73,16 @@ const enseignant = new mongoose.Schema({
     default: false
   },
 
-  subjects: [{
-    type: String
+subjects: [{
+    name: { 
+      type: String, 
+      required: true 
+    },
+    cycle: { 
+      type: String, 
+      required: true 
+    }
   }]
-
 });
 
  // GEO INDEX 

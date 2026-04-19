@@ -105,35 +105,16 @@ exports.completeProfile = async (req, res) => {
           break;
         }
       case 'student':
-        {
-          const student = new Student({ 
-            ...specificProfileData, 
-            id_eleve: idmembre 
-          });
-          await student.save({ session });
-          specificData = student;
-          break;
-        }
       case 'parent':
-        {
-          const parent = new Parent({ 
-            ...specificProfileData, 
-            id_parent: idmembre 
-          });
-          await parent.save({ session });
-          specificData = parent;
-          break;
-        }
+        const student = new Student({ ...specificProfileData, id_eleve: idmembre });
+        await student.save({ session });
+        specificData = student;
+        break;
       case 'admin':
-        {
-          const admin = new Admin({ 
-            ...specificProfileData, 
-            id_admin: idmembre 
-          });
-          await admin.save({ session });
-          specificData = admin;
-          break;
-        }
+        const admin = new Admin({ ...specificProfileData, id_admin: idmembre });
+        await admin.save({ session });
+        specificData = admin;
+        break;
       default:
         // This should never happen due to validation above, but kept for safety
         throw new Error("Invalid role specified.");
@@ -278,3 +259,33 @@ exports.completeProfile = async (req, res) => {
     }
   }
 };
+
+
+/* IN CASE WE NEED TO GET COORDONATES 
+// ... à l'intérieur de completeProfile, après avoir validé le signupToken
+const { commune, wilaya, ...profileData } = req.body;
+
+let coordinates ;
+try {
+    coords = await getCoordinatesFromCity(`${commune}, ${wilaya}, Algeria`);
+} catch (error) {
+    console.error("Géocodage échoué, utilisation de coordonnées par défaut");
+}
+
+// Remplissage du modèle User
+const newUser = new User({
+    firstname,
+    familyname,
+    password,
+    role,
+    idmembre,
+    location: {
+        type: "Point",
+        coordinates: coords // Ici [lng, lat]
+    },
+    ...contact,
+    ...profileData
+});
+
+// Le Teacher héritera de cette structure lors de sa création plus bas dans ton switch(role)
+*/
