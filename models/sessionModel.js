@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
+const Counter = require("./counterModel");
 
 const seanceSchema = new mongoose.Schema({
+
+  id_seance: {
+    type: Number,
+    unique: true
+  },
 
   service: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,6 +19,13 @@ const seanceSchema = new mongoose.Schema({
     ref: "Enseignant",
     required: true
   },
+
+  titre : {
+    type : String,
+    required : true,
+  }
+  ,
+
 
   etudiants: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -39,12 +52,6 @@ const seanceSchema = new mongoose.Schema({
     default: 1
   },
 
-  type_seance: {
-    type: String,
-    enum: ["privee", "groupe"],
-    default: "privee"
-  },
-
   mode: {
     type: String,
     enum: ["presentiel", "en_ligne"],
@@ -58,17 +65,36 @@ const seanceSchema = new mongoose.Schema({
   lien_visio: {
     type: String
   },
+  prix: {
+    type : Number,
+    required : true
+  },
 
   statut: {
     type: String,
-    enum: ["en_attente", "confirmee", "annulee", "terminee", "reportee"],
-    default: "en_attente"
+    enum: ["libre", "confirmee", "annulee", "assuree", "reportee"],
+    default: "libre"
   },
+
+
 
   notes_enseignant: {
     type: String
   }
 
 }, { timestamps: true });
+
+//  Auto-increment adapté à ton counterModel
+seanceSchema.pre("save", async function (next) {
+  if (this.isNew) {
+    const counter = await Counter.findByIdAndUpdate(
+      "seances",            // _id du compteur
+      { $inc: { seq: 1 } }, // incrémenter seq de 1
+      { new: true, upsert: true }
+    );
+    this.id_seance = counter.seq;
+  }
+  next();
+});
 
 module.exports = mongoose.model("Seance", seanceSchema);

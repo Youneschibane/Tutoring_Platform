@@ -11,4 +11,15 @@ router.get('/mesServices' , serviceMethods.getMyservice);
 
 router.post('/addSession' , serviceMethods.addSession);
 
+router.get('/mesSeances' , serviceMethods.getServiceSessions);
+
+router.post('/modifyService' , serviceMethods.updateService);
+
+router.post('/modifySession' , serviceMethods.updateSession);
+
+router.post('/deleteService' , serviceMethods.deleteService);
+
+
+router.post('/deleteSession' , serviceMethods.deleteSession);
+
 module.exports = router;
