@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const User      = require('../models/userModel');
 const Teacher   = require('../models/teacherModel');
 const Student   = require('../models/studentModel');
@@ -5,6 +6,14 @@ const Parent    = require('../models/parentModel');
 const Admin     = require('../models/adminModel');
 const Device    = require('../models/deviceModel');
 const cloudinary = require('../Config/Cloudinaryconfig · JS');
+=======
+const User = require('../models/userModel');
+const Teacher = require('../models/teacherModel');
+const Student = require('../models/studentModel');
+const Parent = require('../models/parentModel');
+const Admin = require('../models/adminModel');
+const Device = require('../models/deviceModel');
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 const getNextId = require('../generateID/nextID');
 const mongoose  = require('mongoose');
 const jwt       = require('jsonwebtoken');
@@ -87,7 +96,13 @@ exports.completeProfile = async (req, res) => {
       throw new Error("Invalid token structure.");
     }
 
+<<<<<<< HEAD
     const contact = { [decoded.field]: decoded.value };
+=======
+    // Determine contact field (email or numberphone)
+    const contactField = decoded.field === 'phone' ? 'numberphone' : decoded.field;
+    const contact = { [contactField]: decoded.value };
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 
     // ── 3. Vérifier que l'utilisateur n'existe pas déjà ─────────────────────
     const existingUser = await User.findOne(contact).session(session);
@@ -300,7 +315,14 @@ exports.completeProfile = async (req, res) => {
 
     if (error.message.includes('duplicate key')) {
       statusCode = 409;
+<<<<<<< HEAD
       message    = 'Email or phone number already registered';
+=======
+      const fieldMatch = error.message.match(/index: (.*?)_1/);
+      const duplicateField = fieldMatch ? fieldMatch[1] : 'unknown';
+      console.error(`Duplicate key error on field: ${duplicateField}`);
+      message = 'Email or phone number already registered';
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
     } else if (error.message.includes('validation')) {
       statusCode = 422;
     }

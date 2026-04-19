@@ -128,7 +128,10 @@ const bookSession = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 const getPastSessions = async (req, res) => {
   try {
     const { id_eleve } = req.params;
