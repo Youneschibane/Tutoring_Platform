@@ -10,7 +10,7 @@ const mailSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User', 
         required: true 
-    } ],
+    }],
     cc: [{ 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User' 
@@ -25,7 +25,7 @@ const mailSchema = new mongoose.Schema({
         default: "(Sans objet)"
     },
     body: { 
-        type: String, // Stockera le HTML du Rich Text Editor
+        type: String, // HTML du Rich Text Editor
     },
     attachments: [
         {
@@ -36,8 +36,12 @@ const mailSchema = new mongoose.Schema({
     ],
     status: {
         type: String,
-        enum: ['draft', 'queued', 'sent'],
+        enum: ['draft', 'queued', 'sent', 'trash', 'inbox'],
         default: 'queued'
+    },
+    isRead: { 
+        type: Boolean, 
+        default: false 
     },
     sentAt: { type: Date }
 }, { timestamps: true });
