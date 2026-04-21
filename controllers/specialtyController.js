@@ -93,7 +93,7 @@ const getEsiSpeciality = async (req, res) => {
 const getSubjectByNature = async (req, res) => {
   const { cycle, nature } = req.query;
 
-  if (cycle?.toLowerCase() === 'Lycee') {
+  if (cycle?.toLowerCase() === 'lycee') {
     let subjects = [];
 
     switch (nature?.toLowerCase()) {

@@ -142,7 +142,7 @@ const repondreDevis = async (req, res) => {
     devis.luprof = true;  // Le prof vient de le traiter
     devis.luEtud = false;
 
-    if (statut === 'accepte' || statut === 'refuse') {
+    if (statut === 'Accepte' || statut === 'Refuse') {
       devis.statut = statut;
       devis.repondue = true;
     } else if (statut === 'En_attente') {
