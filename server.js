@@ -5,77 +5,73 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-const mailRoute = require('./routes/mails')(io); // On passe l'objet 'io'
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// --- 1. CONFIGURATION DU DOSSIER UPLOADS ---
+// Dossier Uploads
 const uploadsPath = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath);
-}
+if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath);
 
-// --- 2. CONFIGURATION CORS ---
-// On définit les options une seule fois pour Express et Socket.io
-const corsOptions = {
-    origin: "http://localhost:5173", // L'URL de ton frontend Vite
-    methods: ["GET", "POST"],
+// CORS
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
     credentials: true
-};
+}));
 
-app.use(cors(corsOptions));
 app.use(express.json());
 
-// --- 3. ACCÈS AUX FICHIERS STATIQUES ---
-// On ajoute des headers de sécurité pour autoriser le navigateur à lire les fichiers
-app.use('/uploads', (req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    next();
-}, express.static(uploadsPath));
-
-// --- 4. CONFIGURATION SOCKET.IO ---
-const io = new Server(server, {
-    cors: corsOptions
+//  FIX : les fichiers sur disque ont littéralement %20 dans leur nom
+app.use('/uploads', (req, res) => {
+     console.log('=== UPLOADS MIDDLEWARE TOUCHÉ ===');
+    console.log('=== req.url:', req.url);
+    console.log('=== req.path:', req.path);
+    // Ne PAS décoder — le nom sur disque contient vraiment %20
+    const fileName = req.path.replace(/^\//, '');
+    const filePath = path.join(uploadsPath, fileName);
+    
+    console.log('=== fileName:', fileName);
+    console.log('=== filePath:', filePath);
+    console.log('=== existe?', fs.existsSync(filePath));
+    
+    res.sendFile(filePath, (err) => {
+        if (err) {
+            console.error('Fichier introuvable:', filePath);
+            res.status(404).json({ error: 'Fichier introuvable' });
+        }
+    });
 });
 
-// --- 5. ROUTES ---
-const conversationRoute = require('./routes/conversations');
-const messageRoute = require('./routes/messages')(io);
+// Socket.io
+const io = new Server(server, { cors: { origin: "*" } });
 
-app.use('/api/conversations', conversationRoute);
-app.use('/api/messages', messageRoute);
-app.use('/api/mails', mailRoute); 
+// Routes
+const mailRoute = require('./routes/mails')(io);
+app.use('/api/mails', mailRoute);
 
-// --- 6. CONNEXION MONGODB ---
+// MongoDB
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ Connected to MongoDB'))
-    .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+    .then(() => console.log('MongoDB Connected'))
+    .catch((err) => console.error('MongoDB Error:', err));
 
-// --- 7. LOGIQUE SOCKET.IO ---
 io.on('connection', (socket) => {
-    console.log(`🔌 Nouveau client connecté : ${socket.id}`);
+    console.log('⚡ Nouvelle connexion Socket.id :', socket.id);
 
-    socket.on('join_conversation', (conversationId) => {
-        socket.join(conversationId);
-        console.log(`👤 User joined room: ${conversationId}`);
-    });
-
-    socket.on('leave_conversation', (conversationId) => {
-        socket.leave(conversationId);
-        console.log(`👤 User left room: ${conversationId}`);
+    socket.on('join_user_room', (userId) => {
+        if (userId) {
+            socket.join(userId);
+            console.log(`L'utilisateur [${userId}] a rejoint sa Room.`);
+        }
     });
 
     socket.on('disconnect', () => {
-        console.log('❌ User disconnected');
+        console.log('Un utilisateur s\'est déconnecté');
     });
 });
 
-// --- 8. LANCEMENT DU SERVEUR ---
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📁 Files available at http://localhost:${PORT}/uploads/`);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on 0.0.0.0:${PORT}`);
 });
