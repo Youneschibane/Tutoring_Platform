@@ -179,7 +179,7 @@ const getYears = async (req, res) => {
 
 const getSubjectsProf = async (req, res) => {
   try {
-    const { id_enseignant } = req.body; 
+    const { id_enseignant } = req.query; 
 
     const teacher = await prof.findOne({ id_enseignant: id_enseignant });
 

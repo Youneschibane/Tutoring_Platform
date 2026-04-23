@@ -27,3 +27,7 @@ Thumbs.db
 #Build folders
 build/
 dist/
+
+firebase-key.json
+.env
+node_modules/
