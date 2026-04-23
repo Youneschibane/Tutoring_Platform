@@ -1,152 +1,222 @@
+<<<<<<< HEAD
+const User      = require('../models/userModel');
+const Teacher   = require('../models/teacherModel');
+const Student   = require('../models/studentModel');
+const Parent    = require('../models/parentModel');
+const Admin     = require('../models/adminModel');
+const Device    = require('../models/deviceModel');
+const cloudinary = require('../Config/Cloudinaryconfig · JS');
+=======
 const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
+const Parent = require('../models/parentModel');
 const Admin = require('../models/adminModel');
 const Device = require('../models/deviceModel');
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 const getNextId = require('../generateID/nextID');
-const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
+const mongoose  = require('mongoose');
+const jwt       = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const UAParser = require('ua-parser-js');
-const geoip = require('geoip-lite');
+const UAParser  = require('ua-parser-js');
+const geoip     = require('geoip-lite');
 
-exports.completeProfile = async (req, res) => {
-  // Initialize session (endSession cleanup is done in finally block)
-  let session;
-  
+// ── Middleware : bloquer un enseignant non accepté par l'admin ───────────────
+exports.isTeacherAccepted = async (req, res, next) => {
   try {
-    // Start a new Mongoose session for transaction
+    if (req.user?.role !== 'teacher') return next();
+
+    const teacher = await Teacher.findOne({ id_enseignant: req.user.idmembre });
+
+    if (!teacher) {
+      return res.status(404).json({ status: 'fail', message: "Profil enseignant introuvable" });
+    }
+
+    if (!teacher.accepted) {
+      return res.status(403).json({
+        status: 'fail',
+        message: "Votre compte est en attente de validation par l'administrateur."
+      });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// ── completeProfile ──────────────────────────────────────────────────────────
+
+// Après upload, multer-storage-cloudinary remplit req.file avec :
+//   req.file.path     → URL publique Cloudinary  (ex: https://res.cloudinary.com/...)
+//   req.file.filename → public_id Cloudinary     (ex: profile_photos/profile_1713520000000)
+exports.completeProfile = async (req, res) => {
+  let session;
+
+  // On garde la référence Cloudinary pour pouvoir supprimer la photo en cas d'erreur
+  let cloudinaryPublicId = null;
+
+  try {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    // Extract and validate required fields
-    const { signupToken, password, role, firstname, familyname, postaladr, ...profileData } = req.body;
+    const {
+      signupToken,
+      password,
+      role,
+      firstname,
+      familyname,
+      postaladr,
+      ...profileData
+    } = req.body;
 
-    // Validate signup token exists
+    // ── 1. Validation des champs obligatoires ────────────────────────────────
     if (!signupToken) {
       throw new Error("Missing signup token. Please verify your email or phone first.");
     }
 
-    // Validate all required profile fields
     if (!firstname || !familyname || !postaladr || !password || !role) {
       throw new Error("Missing required profile fields: firstname, familyname, postaladr, password, or role.");
     }
 
-    // Validate role is one of the allowed values
     const validRoles = ['parent', 'student', 'teacher', 'admin'];
     if (!validRoles.includes(role)) {
-      throw new Error(`Invalid role specified. Allowed roles: ${validRoles.join(', ')}`);
+      throw new Error(`Invalid role. Allowed: ${validRoles.join(', ')}`);
     }
 
-    // Decode the signup token to get verified contact info
+    // ── 2. Vérifier le token de signup ───────────────────────────────────────
     let decoded;
     try {
       decoded = jwt.verify(signupToken, process.env.JWT_SECRET);
-    } catch (err) {
+    } catch {
       throw new Error("Session expired or invalid token. Please verify email/phone again.");
     }
 
-    // Ensure decoded token has required fields
     if (!decoded.field || !decoded.value) {
-      throw new Error("Invalid token structure. Missing field or value.");
+      throw new Error("Invalid token structure.");
     }
 
-    // Determine contact field (email or numberphone)
+<<<<<<< HEAD
     const contact = { [decoded.field]: decoded.value };
+=======
+    // Determine contact field (email or numberphone)
+    const contactField = decoded.field === 'phone' ? 'numberphone' : decoded.field;
+    const contact = { [contactField]: decoded.value };
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 
-    // Check if user already exists with this contact info
+    // ── 3. Vérifier que l'utilisateur n'existe pas déjà ─────────────────────
     const existingUser = await User.findOne(contact).session(session);
     if (existingUser) {
       throw new Error("User already exists with this email or phone number.");
     }
 
-    // Generate unique ID for the user
+    // ── 4. Récupérer l'URL Cloudinary de la photo de profil ─────────────────
+    // multer-storage-cloudinary stocke l'URL publique dans req.file.path
+    // et le public_id dans req.file.filename (utile pour supprimer plus tard)
+    let photoProfilUrl = null;
+    if (req.file) {
+      photoProfilUrl     = req.file.path;      // URL publique → stockée en BDD
+      cloudinaryPublicId = req.file.filename;  // public_id  → pour suppression si erreur
+    }
+
+    // ── 5. Créer le User principal ───────────────────────────────────────────
     const idmembre = await getNextId('user');
 
-    // Create main User document
     const newUser = new User({
       firstname,
       familyname,
       postaladr,
-      password,   // Will be hashed automatically by pre-save hook
+      password,
       role,
       idmembre,
       isVerified: true,
-      ...contact,        // email or numberphone
-      ...profileData      // optional extra fields
+      accepted: false,
+      ...contact,
+      ...profileData
     });
 
-    // Save user and run pre-save hooks (password hashing, validation, etc.)
-    // The session ensures this is part of the transaction
     await newUser.save({ session });
 
-    // Create role-specific profile based on the user's role
+    // ── 6. Créer le profil spécifique au rôle ────────────────────────────────
     let specificData = null;
-    const specificProfileData = { 
-      firstname, 
-      familyname, 
-      postaladr, 
-      ...contact, 
-      ...profileData 
-    };
+    const specificProfileData = { firstname, familyname, postaladr, ...contact, ...profileData };
 
-    // Handle role-specific profile creation
     switch (role) {
-      case 'teacher':
-        {
-          const teacher = new Teacher({ 
-            ...specificProfileData, 
-            id_enseignant: idmembre 
-          });
-          await teacher.save({ session });
-          specificData = teacher;
-          break;
-        }
-      case 'student':
-      case 'parent':
-        const student = new Student({ ...specificProfileData, id_eleve: idmembre });
+
+      case 'teacher': {
+        const teacher = new Teacher({
+          ...specificProfileData,
+          id_enseignant: idmembre,
+          accepted:      false,         // bloqué jusqu'à validation admin
+          photo_profil:  photoProfilUrl // URL Cloudinary ou null
+        });
+        await teacher.save({ session });
+        specificData = teacher;
+        break;
+      }
+
+      case 'student': {
+        const student = new Student({
+          ...specificProfileData,
+          id_eleve:     idmembre,
+          photo_profil: photoProfilUrl
+        });
         await student.save({ session });
         specificData = student;
         break;
-      case 'admin':
-        const admin = new Admin({ ...specificProfileData, id_admin: idmembre });
+      }
+
+      case 'parent': {
+        const parent = new Parent({
+          id_parent:    idmembre,
+          enfants:      [],
+          photo_profil: photoProfilUrl
+        });
+
+        const childId = await getNextId('student');
+        const childStudent = new Student({
+          id_eleve:                childId,
+          id_parent:               idmembre,
+          yearOfStudy:             profileData.yearOfStudy,
+          niveau_scolaire:         profileData.niveau_scolaire,
+          objectifs_pedagogiques:  profileData.objectifs_pedagogiques
+        });
+
+        await childStudent.save({ session });
+        parent.enfants.push(childStudent._id);
+        await parent.save({ session });
+
+        specificData = { parent, child: childStudent };
+        break;
+      }
+
+      case 'admin': {
+        const admin = new Admin({
+          ...specificProfileData,
+          id_admin:     idmembre,
+          photo_profil: photoProfilUrl
+        });
         await admin.save({ session });
         specificData = admin;
         break;
+      }
+
       default:
-        // This should never happen due to validation above, but kept for safety
         throw new Error("Invalid role specified.");
     }
 
-    // All saves successful, commit the transaction
     await session.commitTransaction();
 
-    // ===== Device Registration (outside transaction) =====
-    // Now that the user is created, register their first device
+    // ── 7. Enregistrement de l'appareil (hors transaction) ───────────────────
     try {
-      // Extract IP address (works with proxies and direct connections)
-      const currentIP = req.ip || 
-                       req.connection?.remoteAddress || 
-                       req.socket?.remoteAddress || 
-                       '';
-      
-      // Get user agent string
+      const currentIP        = req.ip || req.connection?.remoteAddress || '';
       const currentUserAgent = req.get('User-Agent') || '';
+      const parser           = new UAParser(currentUserAgent);
+      const deviceName       = `${parser.getBrowser().name || 'Unknown'} on ${parser.getOS().name || 'Unknown'}`;
+      const geo              = geoip.lookup(currentIP);
+      const location         = geo?.country || 'Unknown location';
+      const deviceToken      = uuidv4();
 
-      // Parse user-agent to extract browser and OS information
-      const parser = new UAParser(currentUserAgent);
-      const browser = parser.getBrowser().name || 'Unknown Browser';
-      const os = parser.getOS().name || 'Unknown OS';
-      const deviceName = `${browser} on ${os}`;
-
-      // Geo lookup from IP address
-      const geo = geoip.lookup(currentIP);
-      const location = geo?.country || 'Unknown location';
-
-      // Generate unique device token
-      const deviceToken = uuidv4();
-
-      // Create device record
       const newDevice = new Device({
         userId: newUser._id,
         deviceToken,
@@ -157,65 +227,65 @@ exports.completeProfile = async (req, res) => {
         lastUsed: new Date()
       });
 
-      // Save device data (non-critical, so outside transaction)
       await newDevice.save();
 
-      // Generate login JWT token (90-day expiry)
       const loginToken = jwt.sign(
         { id: newUser._id, role: newUser.role },
         process.env.JWT_SECRET,
         { expiresIn: '90d' }
       );
 
-      // Send success response
       return res.status(201).json({
         status: 'success',
-        message: "Account created successfully!",
+        message: role === 'teacher'
+          ? "Compte créé. En attente de validation par l'administrateur."
+          : "Account created successfully!",
         token: loginToken,
         data: {
           user: {
-            id: newUser._id,
-            idmembre: newUser.idmembre,
-            firstname: newUser.firstname,
-            familyname: newUser.familyname,
-            role: newUser.role,
-            isVerified: newUser.isVerified
+            id:          newUser._id,
+            idmembre:    newUser.idmembre,
+            firstname:   newUser.firstname,
+            familyname:  newUser.familyname,
+            role:        newUser.role,
+            isVerified:  newUser.isVerified,
+            photo_profil: photoProfilUrl,
+            ...(role === 'teacher' && { accepted: false })
           },
           details: specificData,
           device: {
             deviceToken,
             isNewDevice: true,
-            lastUsed: newDevice.lastUsed,
-            deviceName: newDevice.deviceName,
-            location: newDevice.location
+            lastUsed:    newDevice.lastUsed,
+            deviceName:  newDevice.deviceName,
+            location:    newDevice.location
           }
         }
       });
 
     } catch (deviceError) {
-      // Device registration failed, but user already created
       console.error("Device registration error:", deviceError.message);
-      
-      // Generate login JWT anyway
+
       const loginToken = jwt.sign(
         { id: newUser._id, role: newUser.role },
         process.env.JWT_SECRET,
         { expiresIn: '90d' }
       );
 
-      // Send response indicating partial success
       return res.status(201).json({
         status: 'success-partial',
         message: "Account created but device registration failed. Please log in.",
         token: loginToken,
         data: {
           user: {
-            id: newUser._id,
-            idmembre: newUser.idmembre,
-            firstname: newUser.firstname,
-            familyname: newUser.familyname,
-            role: newUser.role,
-            isVerified: newUser.isVerified
+            id:          newUser._id,
+            idmembre:    newUser.idmembre,
+            firstname:   newUser.firstname,
+            familyname:  newUser.familyname,
+            role:        newUser.role,
+            isVerified:  newUser.isVerified,
+            photo_profil: photoProfilUrl,
+            ...(role === 'teacher' && { accepted: false })
           },
           details: specificData
         }
@@ -223,64 +293,43 @@ exports.completeProfile = async (req, res) => {
     }
 
   } catch (error) {
-    // Transaction error - abort the transaction
-    if (session.inTransaction()) {
+    // ── Rollback transaction ─────────────────────────────────────────────────
+    if (session?.inTransaction()) {
       await session.abortTransaction();
     }
-    
-    console.error("Profile completion error:", error.message);
-    
-    // Determine appropriate HTTP status code
-    let statusCode = 400;
-    let message = error.message || 'Failed to complete profile';
 
-    // Handle specific error types
+    // ── Supprimer la photo Cloudinary si elle a été uploadée mais que la BDD a échoué
+    if (cloudinaryPublicId) {
+      try {
+        await cloudinary.uploader.destroy(cloudinaryPublicId);
+        console.log("Photo Cloudinary supprimée après échec:", cloudinaryPublicId);
+      } catch (cleanupError) {
+        console.error("Impossible de supprimer la photo Cloudinary:", cleanupError.message);
+      }
+    }
+
+    console.error("Profile completion error:", error.message);
+
+    let statusCode = 400;
+    let message    = error.message || 'Failed to complete profile';
+
     if (error.message.includes('duplicate key')) {
       statusCode = 409;
+<<<<<<< HEAD
+      message    = 'Email or phone number already registered';
+=======
+      const fieldMatch = error.message.match(/index: (.*?)_1/);
+      const duplicateField = fieldMatch ? fieldMatch[1] : 'unknown';
+      console.error(`Duplicate key error on field: ${duplicateField}`);
       message = 'Email or phone number already registered';
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
     } else if (error.message.includes('validation')) {
       statusCode = 422;
     }
 
-    return res.status(statusCode).json({
-      status: 'fail',
-      message: message
-    });
+    return res.status(statusCode).json({ status: 'fail', message });
 
   } finally {
-    // Ensure session is always ended, regardless of success or error
-    if (session) {
-      session.endSession();
-    }
+    if (session) session.endSession();
   }
 };
-
-
-/* IN CASE WE NEED TO GET COORDONATES 
-// ... à l'intérieur de completeProfile, après avoir validé le signupToken
-const { commune, wilaya, ...profileData } = req.body;
-
-let coordinates ;
-try {
-    coords = await getCoordinatesFromCity(`${commune}, ${wilaya}, Algeria`);
-} catch (error) {
-    console.error("Géocodage échoué, utilisation de coordonnées par défaut");
-}
-
-// Remplissage du modèle User
-const newUser = new User({
-    firstname,
-    familyname,
-    password,
-    role,
-    idmembre,
-    location: {
-        type: "Point",
-        coordinates: coords // Ici [lng, lat]
-    },
-    ...contact,
-    ...profileData
-});
-
-// Le Teacher héritera de cette structure lors de sa création plus bas dans ton switch(role)
-*/

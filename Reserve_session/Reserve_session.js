@@ -1,89 +1,153 @@
-const Seance = require('../models/sessionModel'); 
-const Eleve = require('../models/studentModel');   
+const Seance = require('../models/sessionModel');
+const Eleve = require('../models/studentModel');
+const Parent = require('../models/parentModel');
 
+/**
+ * Réserver une séance.
+ *
+ * Body attendu :
+ *
+ * CAS 1 — Compte élève (réserve pour lui-même) :
+ * {
+ *   session_id  : String,
+ *   type_compte : "eleve",
+ *   id_compte   : Number   ← id de l'élève connecté
+ * }
+ *
+ * CAS 2 — Compte parent (réserve pour un de ses enfants) :
+ * {
+ *   session_id  : String,
+ *   type_compte : "parent",
+ *   id_compte   : Number,  ← id du parent connecté
+ *   id_eleve    : Number   ← id de l'enfant à inscrire
+ * }
+ */
 const bookSession = async (req, res) => {
   try {
-    const { session_id, id_eleve} = req.body;
+    const { session_id, type_compte, id_compte, id_eleve } = req.body;
 
-    // Validation de base
-    if (!session_id || !id_eleve_mongo) {
-      return res.status(400).json({ message: 'Identifiants session et élève requis' });
-    }
-
-    // 2. Vérifier si l'élève existe dans la collection Eleve
-
-    const student = await Eleve.findOne({id_eleve});
-    if (!student) {
-      return res.status(404).json({ message: 'Élève non trouvé' });
-    }
-    const id_eleve_mongo = student._id;
-    
-    // 3. Mise à jour atomique de la séance
-    const session = await Seance.findOneAndUpdate(
-      {
-        session_id: session_id,
-        // Conditions pour accepter l'inscription :
-        statut: { $in: ['en_attente', 'confirmee'] }, // Uniquement si pas annulée ou terminée
-        $expr: { $lt: [{ $size: '$etudiants' }, '$nombre_max_participants'] }, // Reste de la place
-        etudiants: { $ne: id_eleve_mongo } // L'élève n'est pas déjà dans le tableau
-      },
-      { 
-        $push: { etudiants: id_eleve_mongo } 
-      },
-      { 
-        new: true,
-        runValidators: true 
-      }
-    ).populate('service enseignant', 'nom prenom titre'); // Optionnel: pour voir les détails
-
-    // 4. Gestion de l'échec de mise à jour
-    if (!session) {
-      // On vérifie si la séance existe pour donner un message précis
-      const checkSession = await Seance.findById(session_id);
-      if (!checkSession) return res.status(404).json({ message: 'Séance introuvable' });
-      
-      return res.status(400).json({ 
-        message: 'Réservation impossible : séance complète, déjà réservée ou statut invalide' 
+    // ─── 1. Validation des champs de base ────────────────────────────────────
+    if (!session_id || !type_compte || !id_compte) {
+      return res.status(400).json({
+        message: 'Les champs session_id, type_compte et id_compte sont obligatoires'
       });
     }
 
-    // 5. Succès
-    //changer statut en-attente->completed
-     if (session.statut === 'en_attente' ) {
-      session.statut = 'confirmee';
-      await session.save(); 
+    if (!['eleve', 'parent'].includes(type_compte)) {
+      return res.status(400).json({
+        message: "type_compte doit être 'eleve' ou 'parent'"
+      });
     }
+
+    // ─── 2. Identifier l'élève à inscrire selon le type de compte ────────────
+    let studentToBook;
+
+    if (type_compte === 'eleve') {
+      // L'élève réserve pour lui-même
+      studentToBook = await Eleve.findOne({ id_eleve: id_compte });
+      if (!studentToBook) {
+        return res.status(404).json({ message: 'Compte élève introuvable' });
+      }
+
+    } else {
+      // Le parent réserve pour un de ses enfants
+      if (!id_eleve) {
+        return res.status(400).json({
+          message: "Un compte parent doit fournir id_eleve (l'enfant à inscrire)"
+        });
+      }
+
+      const parent = await Parent.findOne({ id_parent: id_compte });
+      if (!parent) {
+        return res.status(404).json({ message: 'Compte parent introuvable' });
+      }
+
+      studentToBook = await Eleve.findOne({ id_eleve });
+      if (!studentToBook) {
+        return res.status(404).json({ message: 'Élève (enfant) introuvable' });
+      }
+
+      // Vérifier que l'enfant appartient bien à ce parent
+      const isChild = parent.enfants.some(
+        (enfantId) => enfantId.toString() === studentToBook._id.toString()
+      );
+
+      if (!isChild) {
+        return res.status(403).json({
+          message: "Cet élève n'est pas rattaché à votre compte parent"
+        });
+      }
+    }
+
+    // ─── 3. Réservation atomique ─────────────────────────────────────────────
+    const session = await Seance.findOneAndUpdate(
+      {
+        session_id,
+        statut: { $in: ['en_attente', 'confirmee'] },
+        $expr: { $lt: [{ $size: '$etudiants' }, '$nombre_max_participants'] },
+        etudiants: { $ne: studentToBook._id }
+      },
+      {
+        $push: { etudiants: studentToBook._id }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    ).populate('service enseignant', 'nom prenom titre');
+
+    // ─── 4. Gestion de l'échec ───────────────────────────────────────────────
+    if (!session) {
+      const checkSession = await Seance.findOne({ session_id });
+      if (!checkSession) {
+        return res.status(404).json({ message: 'Séance introuvable' });
+      }
+
+      return res.status(400).json({
+        message: 'Réservation impossible : séance complète, déjà réservée ou statut invalide'
+      });
+    }
+
+    // ─── 5. Passage en statut "confirmee" si première inscription ────────────
+    if (session.statut === 'en_attente') {
+      session.statut = 'confirmee';
+      await session.save();
+    }
+
+    // ─── 6. Réponse succès ───────────────────────────────────────────────────
     return res.status(201).json({
-      message: 'Inscription réussie',
+      message: type_compte === 'parent'
+        ? `Inscription réussie pour l'élève ${id_eleve} (réservée par le parent ${id_compte})`
+        : 'Inscription réussie',
+      reservePar: type_compte,
       session
     });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
+<<<<<<< HEAD
 
-
+=======
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
 const getPastSessions = async (req, res) => {
   try {
-    const { id_eleve } = req.body; // Ton identifiant numérique (ex: 101)
+    const { id_eleve } = req.params;
 
-    // 1. Trouver l'élève pour obtenir son _id MongoDB
     const student = await Eleve.findOne({ id_eleve });
     if (!student) {
       return res.status(404).json({ message: 'Élève non trouvé' });
     }
 
-    // 2. Chercher les séances terminées où l'élève était présent
     const sessions = await Seance.find({
       statut: 'terminee',
-      etudiants: student._id // MongoDB cherche automatiquement si cet ID est dans le tableau
+      etudiants: student._id
     })
-    .populate('service enseignant', 'nom prenom titre')
-    .sort({ date_seance: -1 }); // Trie par la plus récente en premier
+      .populate('service enseignant', 'nom prenom titre')
+      .sort({ date_seance: -1 });
 
-    // 3. Renvoyer la réponse
     return res.status(200).json({
       count: sessions.length,
       sessions
@@ -95,26 +159,22 @@ const getPastSessions = async (req, res) => {
 };
 
 
-
 const getUpcomingSessions = async (req, res) => {
   try {
-    const { id_eleve } = req.body;
+    const { id_eleve } = req.params;
 
-    // 1. Trouver l'élève pour obtenir son _id technique
     const student = await Eleve.findOne({ id_eleve });
     if (!student) {
       return res.status(404).json({ message: 'Élève non trouvé' });
     }
 
-    // 2. Chercher les séances futures (Confirmées ou Reportées)
     const sessions = await Seance.find({
-      etudiants: student._id, // L'élève est dans la liste
-      statut: { $in: ['confirmee', 'reportee'] } 
+      etudiants: student._id,
+      statut: { $in: ['confirmee', 'reportee'] }
     })
-    .populate('service enseignant', 'nom prenom titre')
-    .sort({ date_seance: 1 }); // La plus proche en premier
+      .populate('service enseignant', 'nom prenom titre')
+      .sort({ date_seance: 1 });
 
-    // 3. Réponse
     return res.status(200).json({
       success: true,
       count: sessions.length,
@@ -127,12 +187,8 @@ const getUpcomingSessions = async (req, res) => {
 };
 
 
-
-
-
-
-module.exports = { 
-  bookSession, 
-  getPastSessions ,
+module.exports = {
+  bookSession,
+  getPastSessions,
   getUpcomingSessions
 };

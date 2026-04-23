@@ -1,55 +1,76 @@
 const mongoose = require('mongoose');
 
-let enseignant=new mongoose.Schema({
+const enseignantSchema = new mongoose.Schema({
 
-
-  id_enseignant:{
-    type:Number,
-    required:true
+  id_enseignant: {
+    type: Number,
+    required: true
   },
 
-  nature:{type:String
-    ,required:true
-    ,enum:["Independant","Etablissement","Centre"]
+  // ── Acceptation par l'admin ──────────────────────────────────────────────
+  // false par défaut : le teacher ne peut rien faire tant que l'admin n'accepte pas
+  accepted: {
+    type: Boolean,
+    default: false,
+    required: true
   },
 
-
-  latitude:{type:Number,
-    required:true
+  // ── Photo de profil ──────────────────────────────────────────────────────
+  
+  photo_profil: {
+    type: String,
+    default: null
   },
 
-
-
-  longitude:{type:Number
-    ,required:true
+  nature: {
+    type: String,
+    required: true,
+    enum: ["Independant", "Etablissement", "Centre"]
   },
 
-
-
-  deplacment:{
-    type:Boolean,
-    required:true
+  // ── Localisation (lat/lng séparés + GeoJSON pour recherche 2dsphere) ─────
+  latitude: {
+    type: Number,
+    required: true
   },
 
-
-
-
-  rayon_deplacement:{
-    type:Number,
-    required:true
+  longitude: {
+    type: Number,
+    required: true
   },
 
-
-
-  desciption_pedagogique:{
-    type:String,
-    required:true
+  // Champ GeoJSON généré automatiquement pour l'index 2dsphere
+  // FIX: le schéma original indexait 'location' qui n'existait pas
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: [0, 0]
+    }
   },
 
+  deplacement: {
+    type: Boolean,
+    required: true
+  },
 
-  certifications:{
-    type:String
-    ,required:true
+  rayon_deplacement: {
+    type: Number,
+    required: true
+  },
+
+  description_pedagogique: {
+    type: String,
+    required: true
+  },
+
+  certifications: {
+    type: String,
+    required: true
   },
 
   actif: {
@@ -57,7 +78,6 @@ let enseignant=new mongoose.Schema({
     required: true
   },
 
-  
   rating: {
     type: Number,
     default: 0
@@ -73,23 +93,34 @@ let enseignant=new mongoose.Schema({
     default: false
   },
 
-subjects: [{
-    name: { 
-      type: String, 
-      required: true 
+  subjects: [{
+    name: {
+      type: String,
+      required: true
     },
-    cycle: { 
-      type: String, 
-      required: true 
+    cycle: {
+      type: String,
+      required: true
     }
   }]
+
 });
 
- // GEO INDEX 
-enseignant.index({ location: "2dsphere" });
+// ── Synchroniser location GeoJSON depuis latitude/longitude avant save ──────
+enseignantSchema.pre('save', function (next) {
+  if (this.latitude != null && this.longitude != null) {
+    this.location = {
+      type: 'Point',
+      coordinates: [this.longitude, this.latitude]
+    };
+  }
+  next();
+});
 
-enseignant.index({ rating: -1 });
+// ── Index 2dsphere sur le vrai champ GeoJSON ─────────────────────────────────
+enseignantSchema.index({ location: '2dsphere' });
+enseignantSchema.index({ rating: -1 });
 
-const Teacher = mongoose.model("Teacher", enseignant);
+const Teacher = mongoose.model('Teacher', enseignantSchema);
 
 module.exports = Teacher;
