@@ -22,45 +22,59 @@ const Data = [
   // -------------------------------------------------------------------------
   { cycle: "Lycee", level: 1, levelName: "1AS", specialty: "Sciences et Technologies", subjects: ["Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ,"Génie Civil" , "Éducation Islamique", "Technologie"] },
   { cycle: "Lycee", level: 1, levelName: "1L", specialty: "Lettres", subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ] },
+  { cycle: "Lycee", level: 1, levelName: "1AS", specialty: "Sciences et Technologies", subjects: ["Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ,"Génie Civil" , "Éducation Islamique", "Technologie"] },
+  { cycle: "Lycee", level: 1, levelName: "1L", specialty: "Lettres", subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ] },
   { 
+    cycle: "Lycee", level: 2, levelName: "2ASS", specialty: "Sciences Expérimentales", 
     cycle: "Lycee", level: 2, levelName: "2ASS", specialty: "Sciences Expérimentales", 
     subjects: ["Éducation Islamique","SVT", "Physique", "Mathématiques", "Arabe", "Français", "Anglais", "Histoire-Géo"] 
   },
   { 
     cycle: "Lycee", level: 2, levelName: "2ASM", specialty: "Mathématiques", 
+    cycle: "Lycee", level: 2, levelName: "2ASM", specialty: "Mathématiques", 
     subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais"] 
   },
   { 
     cycle: "Lycee", level: 2, levelName: "2ASTM", specialty: "Technique Math", 
+    cycle: "Lycee", level: 2, levelName: "2ASTM", specialty: "Technique Math", 
     subjects: ["Éducation Islamique","Mathématiques", "Physique", "Génie Civil", "Génie Mécanique", "Génie Électrique", "Génie des Procédés" ] 
   },
+  { cycle: "Lycee", level: 2, levelName: "2ASGE", specialty: "Gestion et Économie", 
   { cycle: "Lycee", level: 2, levelName: "2ASGE", specialty: "Gestion et Économie", 
     subjects: ["Éducation Islamique","Arabe", "Histoire-Géo", "Français", "Anglais" , "Droit" , "Économie et Management" , "Comptabilité et Gestion Financière"] 
   },  
   { cycle: "Lycee", level: 2, levelName: "2SLP", specialty: "Lettres et Philosophie", 
+  { cycle: "Lycee", level: 2, levelName: "2SLP", specialty: "Lettres et Philosophie", 
     subjects: ["Éducation Islamique","Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais"] 
   },
   { cycle: "Lycee", level: 2, levelName: "2SLE", specialty: "Lettres et Philosophie", 
+  { cycle: "Lycee", level: 2, levelName: "2SLE", specialty: "Lettres et Philosophie", 
     subjects: ["Éducation Islamique","Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais" , "Espagnol" , "Allemand " , "Italien"] 
   },  { 
+    cycle: "Lycee", level: 2, levelName: "3ASS", specialty: "Sciences Expérimentales", 
     cycle: "Lycee", level: 2, levelName: "3ASS", specialty: "Sciences Expérimentales", 
     subjects: ["Éducation Islamique","SVT", "Physique", "Mathématiques", "Arabe", "Français", "Anglais", "Histoire-Géo", "Philosophie"] 
   },
   { 
     cycle: "Lycee", level: 3, levelName: "3ASM", specialty: "Mathématiques", 
+    cycle: "Lycee", level: 3, levelName: "3ASM", specialty: "Mathématiques", 
     subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Philosophie"] 
   },
   { 
+    cycle: "Lycee", level: 3, levelName: "3ASTM", specialty: "Technique Math", 
     cycle: "Lycee", level: 3, levelName: "3ASTM", specialty: "Technique Math", 
     subjects: ["Éducation Islamique","Mathématiques", "Physique", "Génie Civil", "Génie Mécanique", "Génie Électrique", "Génie des Procédés", "Philosophie" ] 
   },
   { 
     cycle: "Lycee", level: 3, levelName: "3ASGE", specialty: "Gestion et Économie", 
+    cycle: "Lycee", level: 3, levelName: "3ASGE", specialty: "Gestion et Économie", 
     subjects: ["Éducation Islamique", "Arabe", "Histoire-Géo", "Français", "Anglais" , "Droit" , "Économie et Management" , "Comptabilité et Gestion Financière", "Philosophie"] 
   },  
   { cycle: "Lycee", level: 3, levelName: "3SLP", specialty: "Lettres et Philosophie", 
+  { cycle: "Lycee", level: 3, levelName: "3SLP", specialty: "Lettres et Philosophie", 
     subjects: ["Éducation Islamique","Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais"] 
   },
+  { cycle: "Lycee", level: 3, levelName: "3SLE", specialty: "Lettres et Philosophie", 
   { cycle: "Lycee", level: 3, levelName: "3SLE", specialty: "Lettres et Philosophie", 
     subjects: ["Éducation Islamique","Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais" , "Espagnol" , "Allemand " , "Italien"] 
   },

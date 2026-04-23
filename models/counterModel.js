@@ -6,6 +6,7 @@ const counterSchema = new mongoose.Schema({
   _id: {    // id specify the type for ex : users ( professor or student ), sessions , service .. 
     type: String,
     required: true,
+    
   },
 
 

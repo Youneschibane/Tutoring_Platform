@@ -215,6 +215,7 @@ const buildAggregationPipeline = (params) => {
       type_service: 1,
       matiere: 1,
       niveau_concerne: 1,
+      
       nombre_max_participants: 1,
       prix: 1,
       duree_seance: 1,

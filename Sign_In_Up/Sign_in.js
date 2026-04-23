@@ -1,6 +1,7 @@
 const User = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
+const Parent = require('../models/parentModel');
 const Admin = require('../models/adminModel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -59,9 +60,20 @@ const signIn = async (req, res) => {
         roleData = await Teacher.findOne({ id_enseignant: user.idmembre });
         break;
       case 'student':
-      case 'parent':
         roleData = await Student.findOne({ id_eleve: user.idmembre });
         break;
+      case 'parent':
+<<<<<<< HEAD
+        {
+          const parent = await Parent.findOne({ id_parent: user.idmembre }).populate('enfants');
+          const child = await Student.findOne({ id_parent: user.idmembre });
+          roleData = { parent, child };
+          break;
+        }
+=======
+        roleData = await Parent.findOne({ id_parent: user.idmembre });
+        break;
+>>>>>>> c439ccc2586b789754767422ea54d3b36718b342
       case 'admin':
         roleData = await Admin.findOne({ id_admin: user.idmembre });
         break;
