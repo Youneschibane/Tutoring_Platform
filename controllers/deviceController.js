@@ -23,6 +23,25 @@ const revokeOtherDevices = async (req, res) => {
   }
 };
 
+const deviceToken =   async (req, res) => {
+  const { deviceToken } = req.body;
+
+  await Device.findOneAndUpdate(
+    { deviceToken },
+    {
+      userId: req.user._id,
+      deviceToken,
+      isActive: true,
+      lastUsed: new Date()
+    },
+    { upsert: true, new: true }
+  );
+
+  res.status(200).json({ message: 'Push token registered.' });
+}
+
+
 module.exports = {
-  revokeOtherDevices
+  revokeOtherDevices,
+  deviceToken
 };

@@ -12,7 +12,7 @@ router.get('/nature' , specialtyController.getSubjectByNature);
 
 router.get('/annee' , specialtyController.getYears);
 
-router.get('/prof' , specialtyController.getSubjectsProf);//post
+router.post('/prof' , specialtyController.getSubjectsProf);// nrmlm get
 
 
 

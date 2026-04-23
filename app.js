@@ -13,6 +13,7 @@ const devisRouter = require('./routes/devisRoutes');
 const specialtyRouter = require('./routes/specialityRouter');
 const locationRoutes = require('./routes/locationRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
+const statistic = require('./routes/profRoutes');
 
 
 const documentRoutes = require('./routes/documentRoutes');
@@ -23,6 +24,9 @@ const documentRoutes = require('./routes/documentRoutes');
 
 
 const app = express();
+// need to remove it 
+app.use(express.static(__dirname));
+
 
 // =====================
 // GLOBAL MIDDLEWARES
@@ -56,6 +60,9 @@ app.use('/api/service' , serviceRoutes);
 
 //router pour les documents
 app.use('/api/documents', documentRoutes); 
+
+//router pour les statistic de prof
+app.use('/api/prof', statistic)
 
 // =====================
 // 404 HANDLER

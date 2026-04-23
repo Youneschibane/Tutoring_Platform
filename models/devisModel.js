@@ -34,7 +34,7 @@ let devis_pedagogique=new mongoose.Schema({
 
   luprof: { type: Boolean, default: false },
   
-  luEtud: { type: Boolean, default: false }
+  luEtud: { type: Boolean, default: true }
 
 })
 
