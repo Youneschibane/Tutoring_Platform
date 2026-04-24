@@ -6,9 +6,8 @@ const Student  = require('../models/studentModel');
 const getStudentDocuments = async (req, res) => {
   try {
 
-    // ── 1. Récupérer l'ID depuis les params (route GET) ─────────────────────
-    // FIX: req.params au lieu de req.body pour une route GET
-    const { student_id } = req.params;
+    // ── 1. Récupérer l'ID depuis le body (route POST) ─────────────────────
+    const { student_id } = req.body;
 
     if (!student_id) {
       return res.status(400).json({

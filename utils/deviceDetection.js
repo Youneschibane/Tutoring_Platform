@@ -28,15 +28,31 @@ const handleDeviceDetection = async ({ user, req }) => {
     let device = null;
     let isNewDevice = false;
 
-    // Check if device exists
+    // Check if device exists (active or inactive)
     if (deviceToken) {
       device = await Device.findOne({
         userId: user._id,
         deviceToken
       });
+      
+      // If device exists but was inactive, reactivate it
+      if (device && !device.isActive) {
+        isNewDevice = false; // It's not a new device, just reactivating
+        device = await Device.findByIdAndUpdate(
+          device._id,
+          {
+            isActive: true,
+            lastUsed: new Date(),
+            ipAddress: currentIP,
+            userAgent,
+            location
+          },
+          { new: true }
+        );
+      }
     }
 
-    // If device is new → create
+    // If device is truly new → create
     if (!device) {
       isNewDevice = true;
       deviceToken = uuidv4();

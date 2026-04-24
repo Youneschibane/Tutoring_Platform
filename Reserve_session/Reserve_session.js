@@ -128,67 +128,73 @@ const bookSession = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
 
-=======
->>>>>>> c439ccc2586b789754767422ea54d3b36718b342
+// ─────────────────────────────────────────────────────────────────────────────
+// SÉANCES PASSÉES
+// GET /api/session/past/:id_eleve
+// ─────────────────────────────────────────────────────────────────────────────
 const getPastSessions = async (req, res) => {
   try {
-    const { id_eleve } = req.params;
-
+    const { id_eleve } = req.body;
+ 
     const student = await Eleve.findOne({ id_eleve });
     if (!student) {
       return res.status(404).json({ message: 'Élève non trouvé' });
     }
-
-    const sessions = await Seance.find({
-      statut: 'terminee',
-      etudiants: student._id
-    })
-      .populate('service enseignant', 'nom prenom titre')
+ 
+ const sessions = await Seance.find({
+  statut:    'terminee',
+  etudiants: student._id,
+  date_seance: { $lt: new Date() }    
+})
+      .populate('service',    'nom description')
+      .populate('enseignant', 'firstname familyname')
       .sort({ date_seance: -1 });
-
-    return res.status(200).json({
-      count: sessions.length,
-      sessions
-    });
-
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-};
-
-
-const getUpcomingSessions = async (req, res) => {
-  try {
-    const { id_eleve } = req.params;
-
-    const student = await Eleve.findOne({ id_eleve });
-    if (!student) {
-      return res.status(404).json({ message: 'Élève non trouvé' });
-    }
-
-    const sessions = await Seance.find({
-      etudiants: student._id,
-      statut: { $in: ['confirmee', 'reportee'] }
-    })
-      .populate('service enseignant', 'nom prenom titre')
-      .sort({ date_seance: 1 });
-
+ 
     return res.status(200).json({
       success: true,
       count: sessions.length,
       sessions
     });
-
+ 
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-
-
-module.exports = {
-  bookSession,
-  getPastSessions,
-  getUpcomingSessions
+ 
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// SÉANCES À VENIR
+// GET /api/session/upcoming/:id_eleve
+// ─────────────────────────────────────────────────────────────────────────────
+const getUpcomingSessions = async (req, res) => {
+  try {
+    const { id_eleve } = req.body;
+ 
+    const student = await Eleve.findOne({ id_eleve });
+    if (!student) {
+      return res.status(404).json({ message: 'Élève non trouvé' });
+    }
+ 
+   const sessions = await Seance.find({
+  etudiants: student._id,
+  statut:    { $in: ['confirmee', 'reportee'] },
+  date_seance: { $gte: new Date() }   
+})
+      .populate('service',    'nom description')
+      .populate('enseignant', 'firstname familyname')
+      .sort({ date_seance: 1 });
+ 
+    return res.status(200).json({
+      success: true,
+      count: sessions.length,
+      sessions
+    });
+ 
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
 };
+ 
+ 
+module.exports = { bookSession, getPastSessions, getUpcomingSessions };
