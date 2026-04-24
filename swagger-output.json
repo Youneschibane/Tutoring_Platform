@@ -13,64 +13,306 @@
   "paths": {
     "/api/auth/signup": {
       "post": {
-        "description": "",
+        "description": "Créer un compte utilisateur — champs requis selon le rôle choisi",
+        "consumes": [
+          "multipart/form-data"
+        ],
         "parameters": [
           {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "signupToken": {
-                  "example": "any"
-                },
-                "password": {
-                  "example": "any"
-                },
-                "role": {
-                  "example": "any"
-                },
-                "firstname": {
-                  "example": "any"
-                },
-                "familyname": {
-                  "example": "any"
-                },
-                "postaladr": {
-                  "example": "any"
-                },
-                "profileData": {
-                  "example": "any"
-                }
-              }
-            }
+            "name": "photo_profil",
+            "in": "formData",
+            "type": "file",
+            "required": false,
+            "description": "📷 Photo de profil (JPEG, PNG) — tous les rôles"
+          },
+          {
+            "name": "signupToken",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "description": "🔑 Token JWT retourné après vérification OTP — tous les rôles"
+          },
+          {
+            "name": "password",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "description": "🔒 Mot de passe (min 8 caractères) — tous les rôles"
+          },
+          {
+            "name": "role",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "enum": [
+              "teacher",
+              "student",
+              "parent",
+              "admin"
+            ],
+            "description": "👤 Rôle de l'utilisateur — tous les rôles"
+          },
+          {
+            "name": "firstname",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "description": "Prénom — tous les rôles",
+            "example": "Ahmed"
+          },
+          {
+            "name": "familyname",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "description": "Nom de famille — tous les rôles",
+            "example": "Benali"
+          },
+          {
+            "name": "postaladr",
+            "in": "formData",
+            "type": "number",
+            "required": true,
+            "description": "Code postal — tous les rôles",
+            "example": 16000
+          },
+          {
+            "name": "────── CHAMPS STUDENT ──────",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          },
+          {
+            "name": "niveau_scolaire",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "🎓 [STUDENT] Niveau scolaire",
+            "example": "3ème"
+          },
+          {
+            "name": "yearOfStudy",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "🎓 [STUDENT] Année d'étude",
+            "example": "2024-2025"
+          },
+          {
+            "name": "objectifs_pedagogiques",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "🎓 [STUDENT] Objectifs pédagogiques",
+            "example": "Améliorer les notes en maths"
+          },
+          {
+            "name": "────── CHAMPS PARENT ──────",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          },
+          {
+            "name": "children",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "👨‍👧 [PARENT] Tableau JSON stringifié des enfants (min 1 requis)\nFormat: [{\"firstname\":\"Youcef\",\"familyname\":\"Benali\"},{\"firstname\":\"Sara\",\"familyname\":\"Benali\"}]",
+            "example": "[{\"firstname\":\"Youcef\",\"familyname\":\"Benali\"},{\"firstname\":\"Sara\",\"familyname\":\"Benali\"}]"
+          },
+          {
+            "name": "────── CHAMPS TEACHER ──────",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          },
+          {
+            "name": "cv",
+            "in": "formData",
+            "type": "file",
+            "required": false,
+            "description": "📄 [TEACHER] CV — OBLIGATOIRE pour le rôle teacher (PDF, DOC, DOCX)"
+          },
+          {
+            "name": "diplomes",
+            "in": "formData",
+            "type": "file",
+            "required": false,
+            "description": "🎓 [TEACHER] Diplômes — OBLIGATOIRE min 1, max 10 (PDF, JPG, PNG, DOC)"
+          },
+          {
+            "name": "diplome_nom_0",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "📝 [TEACHER] Nom du 1er diplôme (optionnel)",
+            "example": "Licence Mathématiques"
+          },
+          {
+            "name": "diplome_nom_1",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "📝 [TEACHER] Nom du 2ème diplôme (optionnel)",
+            "example": "Master Informatique"
+          },
+          {
+            "name": "nature",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "enum": [
+              "Independant",
+              "Etablissement",
+              "Centre"
+            ],
+            "description": "🏫 [TEACHER] Nature de l'enseignant"
+          },
+          {
+            "name": "latitude",
+            "in": "formData",
+            "type": "number",
+            "required": false,
+            "description": "📍 [TEACHER] Latitude",
+            "example": 36.7538
+          },
+          {
+            "name": "longitude",
+            "in": "formData",
+            "type": "number",
+            "required": false,
+            "description": "📍 [TEACHER] Longitude",
+            "example": 3.0588
+          },
+          {
+            "name": "deplacement",
+            "in": "formData",
+            "type": "boolean",
+            "required": false,
+            "description": "🚗 [TEACHER] Accepte les déplacements",
+            "example": true
+          },
+          {
+            "name": "rayon_deplacement",
+            "in": "formData",
+            "type": "number",
+            "required": false,
+            "description": "📏 [TEACHER] Rayon de déplacement en km",
+            "example": 20
+          },
+          {
+            "name": "description_pedagogique",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "📖 [TEACHER] Description pédagogique",
+            "example": "Enseignant expérimenté en mathématiques et physique"
+          },
+          {
+            "name": "certifications",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "🏆 [TEACHER] Certifications obtenues",
+            "example": "CAPES, Agrégation"
+          },
+          {
+            "name": "actif",
+            "in": "formData",
+            "type": "boolean",
+            "required": false,
+            "description": "✅ [TEACHER] Compte actif",
+            "example": true
+          },
+          {
+            "name": "subjects",
+            "in": "formData",
+            "type": "string",
+            "required": false,
+            "description": "📚 [TEACHER] Matières enseignées — JSON stringifié\nFormat: [{\"name\":\"Mathématiques\",\"cycle\":\"Secondaire\"},{\"name\":\"Physique\",\"cycle\":\"Secondaire\"}]",
+            "example": "[{\"name\":\"Mathématiques\",\"cycle\":\"Secondaire\"}]"
           }
         ],
         "responses": {
           "201": {
-            "description": "Created"
+            "description": "Created — compte créé avec succès",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "success"
+                },
+                "token": {
+                  "type": "string",
+                  "example": "eyJhbGc..."
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object"
+                    },
+                    "details": {
+                      "type": "object",
+                      "description": "Données spécifiques au rôle (teacher/student/parent/admin)"
+                    },
+                    "device": {
+                      "type": "object",
+                      "properties": {
+                        "deviceToken": {
+                          "type": "string"
+                        },
+                        "deviceName": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "lastUsed": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — champs manquants, token invalide, ou CV/diplôme manquant pour teacher"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         }
       }
     },
     "/api/auth/signin": {
       "post": {
-        "description": "",
+        "description": "Connexion avec email ou téléphone + mot de passe",
         "parameters": [
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
               "properties": {
                 "email": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "user@example.com"
                 },
                 "phone": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "+213555123456"
                 },
                 "password": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "monMotDePasse123"
                 }
               }
             }
@@ -78,10 +320,247 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK — connexion réussie, retourne token + device info"
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request — identifiant ou mot de passe manquant"
+          },
+          "401": {
+            "description": "Unauthorized — mot de passe incorrect"
+          },
+          "403": {
+            "description": "Forbidden — compte désactivé"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/signup/send-otp": {
+      "post": {
+        "description": "Envoyer un code OTP par email ou téléphone pour l'inscription",
+        "parameters": [
+          {
+            "name": "content-type",
+            "in": "header",
+            "type": "string",
+            "description": "application/json"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "example": "user@example.com"
+                },
+                "phone": {
+                  "type": "string",
+                  "example": "+213555123456"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — code envoyé"
+          },
+          "400": {
+            "description": "Bad Request — format invalide ou contact déjà utilisé"
+          },
+          "429": {
+            "description": "Too Many Requests — attendre 1 minute"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/signup/verify": {
+      "post": {
+        "description": "Vérifier le code OTP reçu — retourne un signupToken (valide 20 minutes)",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "example": "user@example.com"
+                },
+                "phone": {
+                  "type": "string",
+                  "example": "+213555123456"
+                },
+                "code": {
+                  "type": "string",
+                  "example": "123456"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — retourne signupToken"
+          },
+          "400": {
+            "description": "Bad Request — code incorrect ou expiré"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/send-reset": {
+      "post": {
+        "description": "Envoyer un code OTP par email pour réinitialiser le mot de passe",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "email"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "example": "user@example.com"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — code envoyé"
+          },
+          "404": {
+            "description": "Not Found — utilisateur introuvable"
+          },
+          "429": {
+            "description": "Too Many Requests — attendre 1 minute"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/verify": {
+      "post": {
+        "description": "Vérifier le code OTP reset — retourne un resetToken à usage unique (valide 15 minutes)",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "email",
+                "code"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "example": "user@example.com"
+                },
+                "code": {
+                  "type": "string",
+                  "example": "654321"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — retourne resetToken"
+          },
+          "400": {
+            "description": "Bad Request — code incorrect ou expiré"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "description": "Réinitialiser le mot de passe avec le resetToken",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "resetToken",
+                "newPassword"
+              ],
+              "properties": {
+                "resetToken": {
+                  "type": "string",
+                  "example": "eyJhbGc..."
+                },
+                "newPassword": {
+                  "type": "string",
+                  "example": "nouveauMdp123"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — mot de passe réinitialisé"
+          },
+          "400": {
+            "description": "Bad Request — token invalide, expiré ou déjà utilisé"
+          },
+          "404": {
+            "description": "Not Found — utilisateur introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "description": "Déconnecter l'appareil courant uniquement",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — déconnexion réussie"
           },
           "401": {
             "description": "Unauthorized"
@@ -92,206 +571,46 @@
         }
       }
     },
-    "/api/auth/signup/send-otp": {
+    "/api/auth/logout-other-devices": {
       "post": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "content-type",
-            "in": "header",
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "example": "any"
-                },
-                "phone": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "429": {
-            "description": "Too Many Requests"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      }
-    },
-    "/api/auth/signup/verify": {
-      "post": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "example": "any"
-                },
-                "phone": {
-                  "example": "any"
-                },
-                "code": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      }
-    },
-    "/api/auth/password/send-reset": {
-      "post": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "429": {
-            "description": "Too Many Requests"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      }
-    },
-    "/api/auth/password/verify": {
-      "post": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "example": "any"
-                },
-                "code": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      }
-    },
-    "/api/auth/password/reset": {
-      "post": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "resetToken": {
-                  "example": "any"
-                },
-                "newPassword": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      }
-    },
-    "/api/devices/revoke-other-devices": {
-      "delete": {
-        "description": "",
+        "description": "Déconnecter tous les autres appareils sauf l'appareil courant",
         "parameters": [
           {
             "name": "authorization",
             "in": "header",
-            "type": "string"
-          },
-          {
-            "name": "x-device-token",
-            "in": "header",
-            "type": "string"
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK — autres appareils déconnectés"
           },
-          "400": {
-            "description": "Bad Request"
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "description": "Déconnecter tous les appareils y compris l'appareil courant",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — tous les appareils déconnectés"
           },
           "401": {
             "description": "Unauthorized"
@@ -304,7 +623,7 @@
     },
     "/api/search/services": {
       "post": {
-        "description": "",
+        "description": "Rechercher des services d'enseignants",
         "responses": {
           "200": {
             "description": "OK"
@@ -314,24 +633,32 @@
     },
     "/api/session/bookSession": {
       "post": {
-        "description": "",
+        "description": "Réserver une séance",
         "parameters": [
           {
             "name": "authorization",
             "in": "header",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "session_id",
+                "id_eleve"
+              ],
               "properties": {
                 "session_id": {
+                  "type": "string",
                   "example": "any"
                 },
                 "id_eleve": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1001
                 }
               }
             }
@@ -358,21 +685,27 @@
     },
     "/api/session/getPastSessions": {
       "post": {
-        "description": "",
+        "description": "Récupérer les séances passées d'un élève",
         "parameters": [
           {
             "name": "authorization",
             "in": "header",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "id_eleve"
+              ],
               "properties": {
                 "id_eleve": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1001
                 }
               }
             }
@@ -396,21 +729,27 @@
     },
     "/api/session/getUpcomingSessions": {
       "post": {
-        "description": "",
+        "description": "Récupérer les séances à venir d'un élève",
         "parameters": [
           {
             "name": "authorization",
             "in": "header",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "id_eleve"
+              ],
               "properties": {
                 "id_eleve": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1001
                 }
               }
             }
@@ -434,39 +773,54 @@
     },
     "/api/devis/demander": {
       "post": {
-        "description": "",
+        "description": "Envoyer une demande de devis à un enseignant — étudiant uniquement",
         "parameters": [
           {
             "name": "authorization",
             "in": "header",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "id_enseignant",
+                "matiere",
+                "niveau_scolaire",
+                "objectif"
+              ],
               "properties": {
                 "id_enseignant": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 },
                 "matiere": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Mathématiques"
                 },
                 "niveau_scolaire": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "3ème"
                 },
                 "objectif": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Améliorer les notes"
                 },
                 "frequence_souhaite": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "2 fois/semaine"
                 },
                 "duree_estimee": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "1h30"
                 },
                 "budget_estime": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 2000
                 }
               }
             }
@@ -483,40 +837,53 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden — rôle non autorisé"
           }
         }
       }
     },
     "/api/devis/repondre/{id}": {
       "patch": {
-        "description": "",
+        "description": "Répondre à un devis — enseignant uniquement",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "description": "MongoDB _id du devis"
           },
           {
             "name": "authorization",
             "in": "header",
+            "required": true,
             "type": "string"
           },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "statut"
+              ],
               "properties": {
                 "statut": {
-                  "example": "any"
+                  "type": "string",
+                  "enum": [
+                    "accepte",
+                    "refuse",
+                    "En_attente"
+                  ]
                 },
                 "messageProf": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Je suis disponible."
                 },
                 "prixPropose": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1800
                 }
               }
             }
@@ -546,7 +913,15 @@
     },
     "/api/devis/": {
       "get": {
-        "description": "",
+        "description": "Récupérer les devis de l'utilisateur connecté",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -559,7 +934,7 @@
     },
     "/api/specialties/subjects": {
       "get": {
-        "description": "",
+        "description": "Récupérer les matières selon cycle/niveau/spécialité",
         "parameters": [
           {
             "name": "cycleChoisi",
@@ -592,7 +967,7 @@
     },
     "/api/specialties/levels": {
       "get": {
-        "description": "",
+        "description": "Récupérer tous les niveaux scolaires",
         "responses": {
           "200": {
             "description": "OK"
@@ -605,7 +980,7 @@
     },
     "/api/specialties/list": {
       "get": {
-        "description": "",
+        "description": "Lister les spécialités selon l'année",
         "parameters": [
           {
             "name": "year",
@@ -625,7 +1000,7 @@
     },
     "/api/specialties/nature": {
       "get": {
-        "description": "",
+        "description": "Récupérer les matières par cycle et nature",
         "parameters": [
           {
             "name": "cycle",
@@ -653,7 +1028,7 @@
     },
     "/api/specialties/annee": {
       "get": {
-        "description": "",
+        "description": "Récupérer les années scolaires par cycle",
         "parameters": [
           {
             "name": "cycle",
@@ -679,7 +1054,7 @@
     },
     "/api/location/willaya": {
       "get": {
-        "description": "",
+        "description": "Récupérer toutes les wilayas",
         "responses": {
           "200": {
             "description": "OK"
@@ -689,12 +1064,13 @@
     },
     "/api/location/commune": {
       "get": {
-        "description": "",
+        "description": "Récupérer les communes d'une wilaya",
         "parameters": [
           {
             "name": "wilaya",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           }
         ],
         "responses": {
@@ -709,12 +1085,13 @@
     },
     "/api/service/subjects": {
       "get": {
-        "description": "",
+        "description": "Récupérer les matières d'un enseignant",
         "parameters": [
           {
             "name": "id",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           }
         ],
         "responses": {
@@ -732,16 +1109,20 @@
     },
     "/api/service/create": {
       "post": {
-        "description": "",
+        "description": "Créer un service d'enseignement",
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "schema": {
               "type": "object",
+              "required": [
+                "id_enseignant"
+              ],
               "properties": {
                 "id_enseignant": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 }
               }
             }
@@ -762,12 +1143,13 @@
     },
     "/api/service/mesServices": {
       "get": {
-        "description": "",
+        "description": "Récupérer les services d'un enseignant",
         "parameters": [
           {
             "name": "id_enseignant",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           }
         ],
         "responses": {
@@ -788,52 +1170,83 @@
     },
     "/api/service/addSession": {
       "post": {
-        "description": "",
+        "description": "Ajouter une séance à un service",
         "parameters": [
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "id_enseignant",
+                "id_service",
+                "titre",
+                "date_seance",
+                "heure_debut",
+                "heure_fin",
+                "mode",
+                "type_seance",
+                "prix"
+              ],
               "properties": {
                 "id_enseignant": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 },
                 "id_service": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 5
                 },
                 "titre": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Cours de maths 3ème"
                 },
                 "date_seance": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "2025-06-15"
                 },
                 "heure_debut": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "14:00"
                 },
                 "heure_fin": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "15:30"
                 },
                 "mode": {
-                  "example": "any"
+                  "type": "string",
+                  "enum": [
+                    "presentiel",
+                    "en_ligne"
+                  ]
                 },
                 "type_seance": {
-                  "example": "any"
+                  "type": "string",
+                  "enum": [
+                    "individuel",
+                    "groupe"
+                  ]
                 },
                 "nombre_max_participants": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 5
                 },
                 "lieu": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Alger Centre"
                 },
                 "lien_visio": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "https://meet.google.com/xyz"
                 },
                 "notes_enseignant": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Apporter calculatrice"
                 },
                 "prix": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1500
                 }
               }
             }
@@ -857,12 +1270,13 @@
     },
     "/api/service/mesSeances": {
       "get": {
-        "description": "",
+        "description": "Récupérer les séances d'un service",
         "parameters": [
           {
             "name": "id_service",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           }
         ],
         "responses": {
@@ -883,12 +1297,13 @@
     },
     "/api/service/modifyService": {
       "post": {
-        "description": "",
+        "description": "Modifier un service existant",
         "parameters": [
           {
             "name": "id_service",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
@@ -897,10 +1312,12 @@
               "type": "object",
               "properties": {
                 "id_enseignant_auth": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 },
                 "updates": {
-                  "example": "any"
+                  "type": "object",
+                  "example": {}
                 }
               }
             }
@@ -927,12 +1344,13 @@
     },
     "/api/service/modifySession": {
       "post": {
-        "description": "",
+        "description": "Modifier une séance existante",
         "parameters": [
           {
             "name": "id_seance",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
@@ -941,10 +1359,12 @@
               "type": "object",
               "properties": {
                 "id_enseignant_auth": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 },
                 "updates": {
-                  "example": "any"
+                  "type": "object",
+                  "example": {}
                 }
               }
             }
@@ -968,12 +1388,13 @@
     },
     "/api/service/deleteService": {
       "post": {
-        "description": "",
+        "description": "Supprimer un service",
         "parameters": [
           {
             "name": "id_service",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
@@ -982,7 +1403,8 @@
               "type": "object",
               "properties": {
                 "id_enseignant_auth": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 }
               }
             }
@@ -1009,12 +1431,13 @@
     },
     "/api/service/deleteSession": {
       "post": {
-        "description": "",
+        "description": "Supprimer/annuler une séance",
         "parameters": [
           {
             "name": "id_seance",
             "in": "query",
-            "type": "string"
+            "type": "string",
+            "required": true
           },
           {
             "name": "body",
@@ -1023,10 +1446,12 @@
               "type": "object",
               "properties": {
                 "id_enseignant_auth": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1042
                 },
                 "motif_annulation": {
-                  "example": "any"
+                  "type": "string",
+                  "example": "Indisponibilité"
                 }
               }
             }
@@ -1053,34 +1478,68 @@
     },
     "/api/documents/add": {
       "post": {
-        "description": "",
+        "description": "Ajouter un document avec upload de fichier",
+        "consumes": [
+          "multipart/form-data"
+        ],
         "parameters": [
           {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "type_document": {
-                  "example": "any"
-                },
-                "access_type": {
-                  "example": "any"
-                },
-                "service": {
-                  "example": "any"
-                },
-                "seance": {
-                  "example": "any"
-                },
-                "description": {
-                  "example": "any"
-                },
-                "teacher_id": {
-                  "example": "any"
-                }
-              }
-            }
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          },
+          {
+            "name": "file",
+            "in": "formData",
+            "type": "file",
+            "required": true,
+            "description": "Fichier (PDF, JPEG, PNG, DOC, DOCX - max 10MB)"
+          },
+          {
+            "name": "type_document",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "description": "ex: cours, exercice, correction"
+          },
+          {
+            "name": "access_type",
+            "in": "formData",
+            "type": "string",
+            "required": true,
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          {
+            "name": "teacher_id",
+            "in": "formData",
+            "type": "number",
+            "required": true,
+            "description": "idmembre de l'enseignant"
+          },
+          {
+            "name": "service",
+            "in": "formData",
+            "type": "number",
+            "required": false,
+            "description": "id_service — obligatoire si access_type = public"
+          },
+          {
+            "name": "seance",
+            "in": "formData",
+            "type": "number",
+            "required": false,
+            "description": "id_seance — obligatoire si access_type = private"
+          },
+          {
+            "name": "description",
+            "in": "formData",
+            "type": "string",
+            "required": false
           }
         ],
         "responses": {
@@ -1097,7 +1556,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "Conflict"
+            "description": "Conflict — document déjà existant"
           },
           "500": {
             "description": "Internal Server Error"
@@ -1107,16 +1566,29 @@
     },
     "/api/documents/student": {
       "post": {
-        "description": "",
+        "description": "Récupérer tous les documents accessibles par un étudiant (publics + privés)",
         "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          },
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "student_id"
+              ],
               "properties": {
                 "student_id": {
-                  "example": "any"
+                  "type": "number",
+                  "example": 1001,
+                  "description": "id_eleve de l'étudiant"
                 }
               }
             }
@@ -1124,13 +1596,933 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Documents récupérés avec succès",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "number"
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "service": {
+                        "type": "object",
+                        "properties": {
+                          "nom": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "documents_publics": {
+                        "type": "array"
+                      },
+                      "documents_prives": {
+                        "type": "array"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request — student_id manquant"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found — étudiant introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/enfants": {
+      "get": {
+        "description": "Récupérer tous les enfants du parent connecté",
+        "tags": [
+          "Enfants"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des enfants récupérée avec succès",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "success"
+                },
+                "total": {
+                  "type": "number",
+                  "example": 2
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id_eleve": {
+                        "type": "number"
+                      },
+                      "firstname": {
+                        "type": "string"
+                      },
+                      "familyname": {
+                        "type": "string"
+                      },
+                      "niveau_scolaire": {
+                        "type": "string"
+                      },
+                      "yearOfStudy": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — rôle non autorisé (parent uniquement)"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "post": {
+        "description": "Ajouter un enfant au compte parent connecté",
+        "tags": [
+          "Enfants"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "firstname",
+                "familyname"
+              ],
+              "properties": {
+                "firstname": {
+                  "type": "string",
+                  "example": "Youcef"
+                },
+                "familyname": {
+                  "type": "string",
+                  "example": "Benali"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created — enfant ajouté avec succès"
+          },
+          "400": {
+            "description": "Bad Request — prénom ou nom manquant"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — parent uniquement"
+          },
+          "404": {
+            "description": "Not Found — profil parent introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/enfants/{id_eleve}": {
+      "patch": {
+        "description": "Modifier les informations d'un enfant (firstname et/ou familyname)",
+        "tags": [
+          "Enfants"
+        ],
+        "parameters": [
+          {
+            "name": "id_eleve",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_eleve de l'enfant"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "firstname": {
+                  "type": "string",
+                  "example": "Youcef"
+                },
+                "familyname": {
+                  "type": "string",
+                  "example": "Benali"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — enfant mis à jour avec succès"
+          },
+          "400": {
+            "description": "Bad Request — aucun champ à modifier fourni"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — parent uniquement"
+          },
+          "404": {
+            "description": "Not Found — enfant introuvable ou non autorisé"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "delete": {
+        "description": "Supprimer un enfant du compte parent",
+        "tags": [
+          "Enfants"
+        ],
+        "parameters": [
+          {
+            "name": "id_eleve",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_eleve de l'enfant"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — enfant supprimé avec succès"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — parent uniquement"
+          },
+          "404": {
+            "description": "Not Found — enfant introuvable ou non autorisé"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/teachers/pending": {
+      "get": {
+        "description": "Récupérer la liste de tous les enseignants en attente de validation (FIFO — plus anciens en premier)",
+        "tags": [
+          "Admin — Teachers"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des enseignants en attente",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "success"
+                },
+                "total": {
+                  "type": "number",
+                  "example": 5
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id_enseignant": {
+                        "type": "number"
+                      },
+                      "firstname": {
+                        "type": "string"
+                      },
+                      "familyname": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "numberphone": {
+                        "type": "string"
+                      },
+                      "nature": {
+                        "type": "string"
+                      },
+                      "photo_profil": {
+                        "type": "string"
+                      },
+                      "subjects": {
+                        "type": "array"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/teachers/{id}": {
+      "get": {
+        "description": "Récupérer le profil complet d'un enseignant + ses documents (CV, diplômes)",
+        "tags": [
+          "Admin — Teachers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_enseignant"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profil complet de l'enseignant",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "teacher": {
+                      "type": "object",
+                      "properties": {
+                        "id_enseignant": {
+                          "type": "number"
+                        },
+                        "firstname": {
+                          "type": "string"
+                        },
+                        "familyname": {
+                          "type": "string"
+                        },
+                        "nature": {
+                          "type": "string"
+                        },
+                        "description_pedagogique": {
+                          "type": "string"
+                        },
+                        "certifications": {
+                          "type": "string"
+                        },
+                        "subjects": {
+                          "type": "array"
+                        },
+                        "acceptanceStatus": {
+                          "type": "string"
+                        },
+                        "documents": {
+                          "type": "object",
+                          "properties": {
+                            "cv": {
+                              "type": "object",
+                              "properties": {
+                                "url": {
+                                  "type": "string"
+                                },
+                                "uploadedAt": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "diplomes": {
+                              "type": "array"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "documents": {
+                      "type": "array",
+                      "description": "Documents liés aux services/séances"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — enseignant introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/teachers/{id}/accept": {
+      "post": {
+        "description": "Accepter un enseignant — met accepted: true et envoie un email de confirmation",
+        "tags": [
+          "Admin — Teachers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_enseignant"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — enseignant accepté, email envoyé"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — enseignant introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/teachers/{id}/reject": {
+      "post": {
+        "description": "Rejeter un enseignant avec une cause obligatoire — envoie un email avec la raison du rejet",
+        "tags": [
+          "Admin — Teachers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_enseignant"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "example": "Diplômes insuffisants pour le niveau demandé.",
+                  "description": "Cause du rejet — obligatoire et visible par l'enseignant"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — enseignant rejeté, email envoyé avec la cause"
+          },
+          "400": {
+            "description": "Bad Request — reason manquant"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — enseignant introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/teacher/me/status": {
+      "get": {
+        "description": "Consulter le statut de validation de son compte (accessible même si non accepté)",
+        "tags": [
+          "Teacher — Status"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (teacher)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statut de validation retourné",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "success"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "acceptanceStatus": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "accepted",
+                        "rejected"
+                      ],
+                      "example": "pending"
+                    },
+                    "rejectionReason": {
+                      "type": "string",
+                      "example": "Diplômes insuffisants.",
+                      "description": "null si non rejeté"
+                    },
+                    "reviewedAt": {
+                      "type": "string",
+                      "example": "2025-06-01T10:30:00.000Z",
+                      "description": "null si pas encore examiné"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — teacher uniquement"
+          },
+          "404": {
+            "description": "Not Found — profil enseignant introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/services": {
+      "get": {
+        "description": "Lister tous les services — filtrable par statut (admin uniquement)",
+        "tags": [
+          "Admin — Services"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string",
+            "required": true,
+            "description": "Bearer token (admin)"
+          },
+          {
+            "name": "statut",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "enum": [
+              "actif",
+              "suspendu",
+              "supprime"
+            ],
+            "description": "Filtrer par statut — si absent retourne tous les services"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des services récupérée",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "success"
+                },
+                "total": {
+                  "type": "number",
+                  "example": 12
+                },
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id_service": {
+                        "type": "number"
+                      },
+                      "id_enseignant": {
+                        "type": "number"
+                      },
+                      "nom_service": {
+                        "type": "string"
+                      },
+                      "matiere": {
+                        "type": "string"
+                      },
+                      "actif": {
+                        "type": "boolean"
+                      },
+                      "suspendu": {
+                        "type": "boolean"
+                      },
+                      "isDeleted": {
+                        "type": "boolean"
+                      },
+                      "suspensionReason": {
+                        "type": "string"
+                      },
+                      "suspendedAt": {
+                        "type": "string"
+                      },
+                      "date_creation": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/services/{id_service}/suspendre": {
+      "post": {
+        "description": "Suspendre un service — le désactive et notifie l'enseignant par email",
+        "tags": [
+          "Admin — Services"
+        ],
+        "parameters": [
+          {
+            "name": "id_service",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_service du service"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "example": "Contenu non conforme aux conditions d'utilisation.",
+                  "description": "Raison de la suspension — obligatoire et envoyée par email à l'enseignant"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — service suspendu, email envoyé à l'enseignant"
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "fail"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "La raison de la suspension est obligatoire. | Ce service est déjà suspendu. | Ce service a déjà été supprimé."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — service introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/services/{id_service}/reactiver": {
+      "post": {
+        "description": "Réactiver un service suspendu — le remet en ligne et notifie l'enseignant",
+        "tags": [
+          "Admin — Services"
+        ],
+        "parameters": [
+          {
+            "name": "id_service",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_service du service"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — service réactivé, email envoyé à l'enseignant"
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "fail"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Ce service n'est pas suspendu. | Ce service a été supprimé et ne peut pas être réactivé."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — service introuvable"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/services/{id_service}": {
+      "delete": {
+        "description": "Supprimer un service (soft delete) — le désactive définitivement et notifie l'enseignant",
+        "tags": [
+          "Admin — Services"
+        ],
+        "parameters": [
+          {
+            "name": "id_service",
+            "in": "path",
+            "required": true,
+            "type": "number",
+            "description": "id_service du service"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer token (admin)"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "example": "Service frauduleux signalé par plusieurs utilisateurs.",
+                  "description": "Raison de la suppression — obligatoire et envoyée par email à l'enseignant"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — service supprimé définitivement, email envoyé à l'enseignant"
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "fail"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "La raison de la suppression est obligatoire. | Ce service est déjà supprimé."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — admin uniquement"
+          },
+          "404": {
+            "description": "Not Found — service introuvable"
           },
           "500": {
             "description": "Internal Server Error"

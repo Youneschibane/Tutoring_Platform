@@ -56,18 +56,37 @@ const userSchema = new mongoose.Schema({
         default: 'user',
     },
 
-    accepted: {
-        type: Boolean,
-        default: false,
-    },
+ 
 
     postaladr: {
         type: Number,
         required: true,
+    },
+
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+
+    deletionScheduledAt: {
+        type: Date,
+        default: null,
+        select: false
+    },
+
+    passwordChangedAt: {
+        type: Date,
+        select: false
+    },
+
+    // Photo de profil - for all user types
+    photo_profil: {
+        type: String,
+        default: null
     }
 
 
-
+ 
 
 
 },
@@ -93,7 +112,7 @@ userSchema.pre('save', async function () {
 userSchema.methods.comparePassword = async function (password) {
     return await bcrypt.compare(password, this.password);
 };
-
+userSchema.index({ firstname: 'text', familyname: 'text' }); // recherche sur nom du prof
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

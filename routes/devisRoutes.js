@@ -7,8 +7,11 @@ const { protect, restrictTo } = require('../middleware/authMiddleware');
 router.post('/demander', protect, restrictTo('student'), devisController.creerDevis);
 
 // we restrict la demande au prof uniquement 
-router.patch('/repondre/:id', protect, restrictTo('enseignant'), devisController.repondreDevis);
+router.patch('/repondre/:id', protect, restrictTo('teacher'), devisController.repondreDevis);
 
 // both can see their devis 
-router.get('/' , devisController.getMesDevis);
+router.get('/Mesdevis' , protect , devisController.getMesDevis);
+
+router.put('/repondreEtud/:id' , protect , restrictTo('student') , devisController.reponseFinaleEtudiant);
+
 module.exports = router;

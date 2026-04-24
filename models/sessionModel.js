@@ -16,7 +16,7 @@ const seanceSchema = new mongoose.Schema({
 
   enseignant: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Enseignant",
+    ref: "Teacher" ,
     required: true
   },
 
@@ -29,7 +29,7 @@ const seanceSchema = new mongoose.Schema({
 
   etudiants: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Etudiant"
+    ref: "eleve"
   }],
 
   date_seance: {
@@ -80,7 +80,7 @@ const seanceSchema = new mongoose.Schema({
 
   notes_enseignant: {
     type: String
-  },
+  }
 
 }, { timestamps: true });
 

@@ -15,13 +15,7 @@ const enseignantSchema = new mongoose.Schema({
     required: true
   },
 
-  // ── Photo de profil ──────────────────────────────────────────────────────
-  
-  photo_profil: {
-    type: String,
-    default: null
-  },
-
+ 
   nature: {
     type: String,
     required: true,
@@ -37,6 +31,12 @@ const enseignantSchema = new mongoose.Schema({
   longitude: {
     type: Number,
     required: true
+  },
+// ── Photo de profil ──────────────────────────────────────────────────────
+  
+  photo_profil: {
+    type: String,
+    default: null
   },
 
   // Champ GeoJSON généré automatiquement pour l'index 2dsphere
@@ -92,6 +92,11 @@ const enseignantSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  modalite:{
+    //type enum
+    type:String ,
+    enum: ["En ligne", "En présentiel", "Hybride"],
+  },
 
   subjects: [{
     name: {
@@ -102,7 +107,49 @@ const enseignantSchema = new mongoose.Schema({
       type: String,
       required: true
     }
+  }],
+
+  // ── Workflow de validation des enseignants ────────────────────────────────
+  acceptanceStatus: {
+    type: String,
+    enum: ['pending', 'accepted', 'rejected'],
+    default: 'pending'
+  },
+
+  rejectionReason: {
+    type: String,
+    default: null
+  },
+
+  reviewedAt: {
+    type: Date,
+    default: null
+  },
+
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    ref: 'User'
+  },
+
+// ── Documents de candidature (soumis à l'inscription) ────────────────────────
+documents: {
+
+  cv: {
+    url:        { type: String, default: null },  // Cloudinary URL
+    publicId:   { type: String, default: null },  // pour suppression Cloudinary
+    uploadedAt: { type: Date,   default: null }
+  },
+
+  diplomes: [{
+    url:        { type: String, required: true },
+    publicId:   { type: String, required: true },
+    nom:        { type: String, default: null }, // ex: "Licence Mathématiques"
+    uploadedAt: { type: Date,   default: Date.now }
   }]
+
+}
+
 
 });
 
@@ -120,6 +167,7 @@ enseignantSchema.pre('save', function (next) {
 // ── Index 2dsphere sur le vrai champ GeoJSON ─────────────────────────────────
 enseignantSchema.index({ location: '2dsphere' });
 enseignantSchema.index({ rating: -1 });
+enseignantSchema.index({ acceptanceStatus: 1 });
 
 const Teacher = mongoose.model('Teacher', enseignantSchema);
 
