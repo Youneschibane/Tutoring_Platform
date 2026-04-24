@@ -13,14 +13,8 @@ const devisRouter = require('./routes/devisRoutes');
 const specialtyRouter = require('./routes/specialityRouter');
 const locationRoutes = require('./routes/locationRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
-
-
+const adminRoutes = require('./routes/adminRoutes');
 const documentRoutes = require('./routes/documentRoutes');
-
-
-
-
-
 
 const app = express();
 
@@ -57,6 +51,8 @@ app.use('/api/service' , serviceRoutes);
 //router pour les documents
 app.use('/api/documents', documentRoutes); 
 
+//router pour l admin
+app.use('/api/admin', adminRoutes);
 // =====================
 // 404 HANDLER
 // =====================
