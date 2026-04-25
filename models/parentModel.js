@@ -10,10 +10,16 @@ const parentSchema = new mongoose.Schema({
   
   },
 
-  enfants: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Student"
-  }]
+ enfants: [
+  {
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Eleve',
+    },
+    firstname: String,
+    familyname: String
+  }
+],
 
 }, { timestamps: true });
 

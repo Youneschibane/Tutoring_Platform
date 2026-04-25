@@ -185,7 +185,7 @@ exports.sendResetOtp = async (req, res) => {
     await Otp.findOneAndUpdate(
       { identifier: email, purpose: 'reset' },
       { identifier: email, purpose: 'reset', otp: newOtpCode, createdAt: new Date() },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
 
     await sendEmail({ email, subject: 'Code de réinitialisation', message: `Votre code de réinitialisation : ${newOtpCode}` });

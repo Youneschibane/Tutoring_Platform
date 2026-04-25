@@ -2,7 +2,7 @@ const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
 const Session = require('../models/sessionModel');
 const multer = require('multer');
-const storage = require('../claudinaryConfig');
+const storage = require('../Config/Cloudinaryconfig · JS');
 const upload = multer({ storage: storage });
 
 

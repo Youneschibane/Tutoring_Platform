@@ -1,115 +1,26 @@
 const mongoose = require('mongoose');
 
-const enseignantSchema = new mongoose.Schema({
+const teacherSchema = new mongoose.Schema({
 
+  // ─────────────────────────────
+  // IDENTIFIANT
+  // ─────────────────────────────
   id_enseignant: {
     type: Number,
-    required: true
+    required: true,
+    unique: true,
+    index: true
   },
 
-  // ── Acceptation par l'admin ──────────────────────────────────────────────
-  // false par défaut : le teacher ne peut rien faire tant que l'admin n'accepte pas
+  // ─────────────────────────────
+  // ACCEPTATION ADMIN
+  // ─────────────────────────────
   accepted: {
     type: Boolean,
     default: false,
-    required: true
+    index: true
   },
 
- 
-  nature: {
-    type: String,
-    required: true,
-    enum: ["Independant", "Etablissement", "Centre"]
-  },
-
-  // ── Localisation (lat/lng séparés + GeoJSON pour recherche 2dsphere) ─────
-  latitude: {
-    type: Number,
-    required: true
-  },
-
-  longitude: {
-    type: Number,
-    required: true
-  },
-// ── Photo de profil ──────────────────────────────────────────────────────
-  
-  photo_profil: {
-    type: String,
-    default: null
-  },
-
-  // Champ GeoJSON généré automatiquement pour l'index 2dsphere
-  // FIX: le schéma original indexait 'location' qui n'existait pas
-  location: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
-    },
-    coordinates: {
-      type: [Number], // [longitude, latitude]
-      default: [0, 0]
-    }
-  },
-
-  deplacement: {
-    type: Boolean,
-    required: true
-  },
-
-  rayon_deplacement: {
-    type: Number,
-    required: true
-  },
-
-  description_pedagogique: {
-    type: String,
-    required: true
-  },
-
-  certifications: {
-    type: String,
-    required: true
-  },
-
-  actif: {
-    type: Boolean,
-    required: true
-  },
-
-  rating: {
-    type: Number,
-    default: 0
-  },
-
-  reviewsCount: {
-    type: Number,
-    default: 0
-  },
-
-  online: {
-    type: Boolean,
-    default: false
-  },
-  modalite:{
-    //type enum
-    type:String ,
-    enum: ["En ligne", "En présentiel", "Hybride"],
-  },
-
-  subjects: [{
-    name: {
-      type: String,
-      required: true
-    },
-    cycle: {
-      type: String,
-      required: true
-    }
-  }],
-
-  // ── Workflow de validation des enseignants ────────────────────────────────
   acceptanceStatus: {
     type: String,
     enum: ['pending', 'accepted', 'rejected'],
@@ -128,47 +39,159 @@ const enseignantSchema = new mongoose.Schema({
 
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    default: null,
-    ref: 'User'
+    ref: 'User',
+    default: null
   },
 
-// ── Documents de candidature (soumis à l'inscription) ────────────────────────
-documents: {
-
-  cv: {
-    url:        { type: String, default: null },  // Cloudinary URL
-    publicId:   { type: String, default: null },  // pour suppression Cloudinary
-    uploadedAt: { type: Date,   default: null }
+  // ─────────────────────────────
+  // PROFIL PROF
+  // ─────────────────────────────
+  nature: {
+    type: String,
+    enum: ['Independent', 'Etablissement', 'Centre'],
+    required: true,
+    index: true
   },
 
-  diplomes: [{
-    url:        { type: String, required: true },
-    publicId:   { type: String, required: true },
-    nom:        { type: String, default: null }, // ex: "Licence Mathématiques"
-    uploadedAt: { type: Date,   default: Date.now }
-  }]
+  description_pedagogique: {
+    type: String,
+    required: true
+  },
 
-}
+  deplacement: {
+    type: Boolean,
+    required: true
+  },
 
+  rayon_deplacement: {
+    type: Number,
+    required: true,
+    default: 0
+  },
 
+  modalite: {
+    type: String,
+    enum: ['En ligne', 'En présentiel', 'Hybride'],
+    default: 'En ligne'
+  },
+
+  // ─────────────────────────────
+  // GEO LOCATION (UBER STYLE)
+  // ─────────────────────────────
+  latitude: {
+    type: Number,
+    default: 0
+  },
+
+  longitude: {
+    type: Number,
+    default: 0
+  },
+
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      default: [0, 0]
+    }
+  },
+
+  // ─────────────────────────────
+  // STATS
+  // ─────────────────────────────
+  rating: {
+    type: Number,
+    default: 0
+  },
+
+  reviewsCount: {
+    type: Number,
+    default: 0
+  },
+
+  online: {
+    type: Boolean,
+    default: false
+  },
+
+  actif: {
+    type: Boolean,
+    default: true,
+    index: true
+  },
+
+  // ─────────────────────────────
+  // MATIÈRES
+  // ─────────────────────────────
+  subjects: [
+    {
+      name: {
+        type: String,
+        required: true
+      },
+      cycle: {
+        type: String,
+        required: true
+      }
+    }
+  ],
+
+  // ─────────────────────────────
+  // DOCUMENTS
+  // ─────────────────────────────
+  documents: {
+    cv: {
+      url: String,
+      publicId: String,
+      uploadedAt: Date
+    },
+
+    diplomes: [
+      {
+        url: { type: String, required: true },
+        publicId: { type: String, required: true },
+        nom: String,
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
+  }
+
+}, {
+  timestamps: true
 });
 
-// ── Synchroniser location GeoJSON depuis latitude/longitude avant save ──────
-enseignantSchema.pre('save', function (next) {
-  if (this.latitude != null && this.longitude != null) {
+
+// ─────────────────────────────
+// GEO INDEX (IMPORTANT)
+// ─────────────────────────────
+teacherSchema.index({ location: '2dsphere' });
+teacherSchema.index({ rating: -1 });
+teacherSchema.index({ acceptanceStatus: 1 });
+
+
+// ─────────────────────────────
+// AUTO GEO SYNC (SAFE VERSION)
+// ─────────────────────────────
+teacherSchema.pre('save', function () {
+  if (
+    typeof this.latitude === 'number' &&
+    typeof this.longitude === 'number'
+  ) {
     this.location = {
       type: 'Point',
       coordinates: [this.longitude, this.latitude]
     };
   }
-  next();
 });
 
-// ── Index 2dsphere sur le vrai champ GeoJSON ─────────────────────────────────
-enseignantSchema.index({ location: '2dsphere' });
-enseignantSchema.index({ rating: -1 });
-enseignantSchema.index({ acceptanceStatus: 1 });
 
-const Teacher = mongoose.model('Teacher', enseignantSchema);
+const Teacher = mongoose.model('Teacher', teacherSchema);
 
 module.exports = Teacher;

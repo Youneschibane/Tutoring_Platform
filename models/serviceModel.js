@@ -1,62 +1,126 @@
 const mongoose = require('mongoose');
 
-let service = new mongoose.Schema({
+const serviceSchema = new mongoose.Schema({
 
-  id_service:   { type: Number, required: true, unique: true },
-  id_enseignant:{ type: Number, required: true },
-  nom_service:  { type: String, required: true },
+  id_service: {
+    type: Number,
+    required: true,
+    unique: true
+  },
+
+  id_enseignant: {
+    type: Number,
+    required: true,
+    index: true
+  },
+
+  nom_service: {
+    type: String,
+    required: true,
+    trim: true
+  },
 
   type_service: {
-    type: String, required: true,
+    type: String,
+    required: true,
     enum: ["Individuel", "Groupe"]
   },
 
-  matiere:          { type: String, required: true },
-  niveau_concerne:  { type: String, required: true, enum: ["Primaire", "Collège", "Lycée", "ESI"] },
-  annee_concerne:   { type: String, required: true },
-  nombre_max_participants: { type: Number, required: true },
-  prix:             { type: Number, required: true },
-  duree_seance:     { type: Number, required: true },
-  description:      { type: String, required: true },
-  actif:            { type: Boolean, required: true },
-  date_creation:    { type: Date, default: Date.now },
-
-  isDeleted: {
-    type: Boolean,
+  matiere: {
+    type: String,
     required: true,
-    default: false
+    index: true
   },
 
-  // ── Admin — suspension du service ─────────────────────────────────────────
+  niveau_concerne: {
+    type: String,
+    required: true,
+    enum: ["Primaire", "Collège", "Lycée", "ESI"],
+    index: true
+  },
+
+  annee_concerne: {
+    type: String,
+    required: true
+  },
+
+  nombre_max_participants: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+
+  prix: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+
+  duree_seance: {
+    type: Number,
+    required: true
+  },
+
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+
+  actif: {
+    type: Boolean,
+    required: true,
+    default: true
+  },
+
+  // ── soft delete ─────────────────────────────
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+
+  // ── suspension admin ────────────────────────
   suspendu: {
     type: Boolean,
-    default: false   // false = actif | true = suspendu par l'admin
+    default: false,
+    index: true
   },
 
   suspendedAt: {
     type: Date,
-    default: null    // date de suspension
+    default: null
   },
 
   suspendedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    default: null    // admin qui a suspendu
+    default: null
   },
 
   suspensionReason: {
     type: String,
-    default: null    // raison de la suspension visible par le teacher
+    default: null
+  },
+
+  date_creation: {
+    type: Date,
+    default: Date.now,
+    index: true
   }
 
+}, {
+  timestamps: false
 });
 
-service.index({ matiere: 1 });
-service.index({ prix: 1 });
-service.index({ niveau_concerne: 1 });
-service.index({ suspendu: 1 });   // ← index pour les queries admin
-service.index({ isDeleted: 1 });
+// ─────────────────────────────────────────────
+// INDEXES (optimisés SaaS)
+// ─────────────────────────────────────────────
+serviceSchema.index({ isDeleted: 1, suspendu: 1, date_creation: -1 });
+serviceSchema.index({ nom_service: 'text', matiere: 'text' });
 
-service.index({ nom_service: 'text' }); // recherche sur nom du service
-const Service = mongoose.model('Service', service);
+serviceSchema.index({ prix: 1, niveau_concerne: 1 });
+
+const Service = mongoose.model('Service', serviceSchema);
+
 module.exports = Service;

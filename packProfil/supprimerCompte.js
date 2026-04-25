@@ -43,7 +43,7 @@ exports.deleteAccount = async (req, res) => {
         deletionScheduledFor: deletionDate,
         status: 'pending'
       },
-      { upsert: true, new: true, session }
+      { upsert: true, returnDocument: "after", session }
     );
 
     await session.commitTransaction();

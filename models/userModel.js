@@ -83,9 +83,13 @@ const userSchema = new mongoose.Schema({
     photo_profil: {
         type: String,
         default: null
-    }
+    },
 
-
+loggedOutAt: {
+  type: Date,
+  default: null,
+  select: false
+}
  
 
 
