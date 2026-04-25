@@ -153,6 +153,9 @@ const getAllServices = async (req, res) => {
     const page  = Math.max(1, parseInt(req.query.page)  || DEFAULT_PAGE);
     const limit = Math.min(MAX_LIMIT, parseInt(req.query.limit) || DEFAULT_LIMIT);
 
+    const now = new Date();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const pipeline = buildPipeline({
       serviceQuery: {}, teacherQuery: {}, userQuery: {},
       center: null, radius: 10000,
@@ -162,16 +165,27 @@ const getAllServices = async (req, res) => {
 
     const countPipeline = [...pipeline.slice(0, -2), { $count: 'total' }];
 
-    const [services, countResult] = await Promise.all([
-      Service.aggregate(pipeline),
-      Service.aggregate(countPipeline)
-    ]);
+    const [services, countResult, totalServices, activeServices, suspendedServices, deletedThisMonth] = 
+      await Promise.all([
+        Service.aggregate(pipeline),
+        Service.aggregate(countPipeline),
+        Service.countDocuments({}),                                                      // total
+        Service.countDocuments({ actif: true,  isDeleted: false }),                      // actifs
+        Service.countDocuments({ actif: false, isDeleted: false }),                      // suspendus
+        Service.countDocuments({ isDeleted: true, date_creation: { $gte: startOfCurrentMonth } }) // supprimés ce mois
+      ]);
 
     return res.status(200).json({
       status: 'success',
       page, limit,
       total: countResult[0]?.total ?? 0,
       totalPages: Math.ceil((countResult[0]?.total ?? 0) / limit),
+      stats: {
+        totalServices,
+        activeServices,
+        suspendedServices,
+        deletedThisMonth
+      },
       data: services
     });
 
@@ -180,7 +194,6 @@ const getAllServices = async (req, res) => {
     return res.status(500).json({ status: 'error', message: error.message });
   }
 };
-
 
 const searchServices = async (req, res) => {
   try {

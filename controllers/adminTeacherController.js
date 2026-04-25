@@ -1,6 +1,8 @@
 const Teacher = require('../models/teacherModel');
 const User = require('../models/userModel');
-
+const Review = require('../models/evaluation');
+const Session = require('../models/sessionModel');
+const Service = require('../models/serviceModel');
 
 const DEFAULT_PAGE  = 1;
 const DEFAULT_LIMIT = 20;
@@ -213,5 +215,86 @@ const searchTeachers = async (req, res) => {
   }
 };
 
-module.exports = { allTeachers, searchTeachers };
 
+
+const getTeacherDetails = async (req, res) => {
+  try {
+    const teacherObjectId = req.params.id; 
+
+    const teacher = await Teacher.findById(teacherObjectId);
+    if (!teacher) {
+      return res.status(404).json({ status: 'fail', message: 'Enseignant non trouvé.' });
+    }
+
+    const user = await User.findOne(
+      { idmembre: teacher.id_enseignant },
+      'firstname familyname email numberphone postaladr createdAt'
+    );
+
+    const [
+      seancesAssurees,
+      seancesAnnulees,
+      seancesReportees,
+      totalServices,
+      comments,
+    ] = await Promise.all([
+      // Séances assurées
+      Session.countDocuments({ enseignant: teacherObjectId, statut: 'assuree' }),
+      // Séances annulées
+      Session.countDocuments({ enseignant: teacherObjectId, statut: 'annulee' }),
+      // Séances reportées
+      Session.countDocuments({ enseignant: teacherObjectId, statut: 'reportee' }),
+      // Total services
+      Service.countDocuments({ id_enseignant: teacher.id_enseignant, isDeleted: false }),
+      // All comments
+      Review.find({ id_enseignant: teacher.id_enseignant })
+        .sort({ createdAt: -1 })
+        .limit(20),
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        // Teacher profile
+        teacher: {
+          _id:                       teacher._id,
+          id_enseignant:             teacher.id_enseignant,
+          nature:                    teacher.nature,
+          actif:                     teacher.actif,
+          accepted:                  teacher.accepted,
+          online:                    teacher.online,
+          deplacement:               teacher.deplacement,
+          rayon_deplacement:         teacher.rayon_deplacement,
+          description_pedagogique:   teacher.description_pedagogique,
+          certifications:            teacher.certifications,
+          subjects:                  teacher.subjects,
+          photo_profil:              teacher.photo_profil,
+          rating:                    teacher.rating,
+          reviewsCount:              teacher.reviewsCount,
+          latitude:                  teacher.latitude,
+          longitude:                 teacher.longitude,
+        },
+        user: user || {},
+        // Stats
+        stats: {
+          seancesAssurees,    
+          seancesAnnulees,    
+          seancesReportees,   
+          totalServices,      
+          rate: {
+            score: teacher.rating,        
+            count: teacher.reviewsCount,  
+          }
+        },
+        // All comments
+        comments,
+      }
+    });
+
+  } catch (error) {
+    console.error('getTeacherDetails error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+module.exports = { allTeachers, searchTeachers , getTeacherDetails };
