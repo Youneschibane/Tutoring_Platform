@@ -15,7 +15,7 @@ const locationRoutes = require('./routes/locationRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const documentRoutes = require('./routes/documentRoutes');
-
+const statistic = require('./routes/profRoutes')
 const app = express();
 
 // =====================
@@ -53,6 +53,9 @@ app.use('/api/documents', documentRoutes);
 
 //router pour l admin
 app.use('/api/admin', adminRoutes);
+
+//router pour les statistic de prof
+app.use('/api/prof', statistic)
 // =====================
 // 404 HANDLER
 // =====================
