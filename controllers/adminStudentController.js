@@ -85,6 +85,7 @@ const buildPipeline = ({ studentQuery, userQuery, sortBy, sortOrder, page, limit
       actif:          1,
       wilaya:         1,
       commune:        1,
+      objectifs_pedagogiques: 1,
       firstname:      '$user.firstname',
       familyname:     '$user.familyname',
       email:          '$user.email',
