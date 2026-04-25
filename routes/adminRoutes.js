@@ -25,7 +25,7 @@ router.patch('/education/:id/add-subject',    addSubject);
 router.patch('/education/:id/remove-subject', removeSubject);
 router.get('/education/options',  getOptions);
 router.get('/education/subjects', getSubjects);
-router.get('/education/cycles', getCycles);
+router.get('/education/cycles',   getCycles);
 
 
 module.exports = router;
