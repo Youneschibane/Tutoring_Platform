@@ -3,10 +3,10 @@ const router  = express.Router();
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const { allTeachers, searchTeachers , getTeacherDetails } = require('../controllers/adminTeacherController');
 const { getAllServices, searchServices } = require('../controllers/adminServiceController');
-const { getAllStudents, searchStudents } = require('../controllers/adminStudentController');
+const { getAllStudents, searchStudents  } = require('../controllers/adminStudentController');
 
 
-const { addSubject, removeSubject, getAllLevels } = require('../controllers/adminEducationController');
+const { addSubject, removeSubject, getAllLevels , getOptions,getSubjects,getCycles } = require('../controllers/adminEducationController');
 
 router.get('/teachers',        allTeachers);
 router.post('/teachers/search' ,searchTeachers);
