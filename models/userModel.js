@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema({
         default: 'user',
     },
 
+    accepted: {
+        type: Boolean,
+        default: false,
+    },
+
     postaladr: {
         type: Number,
         required: true,
