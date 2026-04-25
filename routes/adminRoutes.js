@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const { allTeachers, searchTeachers , getTeacherDetails } = require('../controllers/adminTeacherController');
-const { getAllServices, searchServices } = require('../controllers/adminServiceController');
+const { getAllServices, searchServices , getAllSubjects } = require('../controllers/adminServiceController');
 const { getAllStudents, searchStudents  } = require('../controllers/adminStudentController');
 
 
@@ -14,6 +14,8 @@ router.get('/teachers/:id', getTeacherDetails);
 
 router.get('/services',        getAllServices);
 router.post('/services/search' ,searchServices);
+router.get('/services/all-subjects', getAllSubjects);
+
 
 router.get('/students',        getAllStudents);
 router.post('/students/search' ,searchStudents);

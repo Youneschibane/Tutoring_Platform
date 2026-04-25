@@ -2,6 +2,7 @@ const Service = require('../models/serviceModel');
 const Teacher = require('../models/teacherModel');
 const User = require('../models/userModel');
 const axios = require('axios');
+const Education = require('../models/educationModel'); 
 
 
 const DEFAULT_PAGE  = 1;
@@ -245,4 +246,36 @@ const searchServices = async (req, res) => {
   }
 };
 
-module.exports = { getAllServices, searchServices };
+
+const getAllSubjects = async (req, res) => {
+  try {
+    const levels = await Education.find().sort({ cycle: 1, level: 1 });
+
+    const allSubjectsSet = new Set();
+    levels.forEach(l => l.subjects.forEach(s => allSubjectsSet.add(s)));
+
+    const groupedByCycle = {};
+    levels.forEach(doc => {
+      if (!groupedByCycle[doc.cycle]) {
+        groupedByCycle[doc.cycle] = new Set();
+      }
+      doc.subjects.forEach(s => groupedByCycle[doc.cycle].add(s));
+    });
+
+    const byCycle = {};
+    for (const [cycle, set] of Object.entries(groupedByCycle)) {
+      byCycle[cycle] = [...set].sort();
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      allSubjects: [...allSubjectsSet].sort(),
+      byCycle
+    });
+
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+module.exports = { getAllServices, searchServices , getAllSubjects };
