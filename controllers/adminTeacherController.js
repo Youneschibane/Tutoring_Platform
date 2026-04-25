@@ -1,5 +1,4 @@
 const Teacher = require('../models/teacherModel');
-const Teacher = require('../models/teacherModel');
 const User = require('../models/userModel');
 
 
@@ -76,7 +75,7 @@ const buildPipeline = ({ teacherQuery, userQuery, sortBy, sortOrder, page, limit
       as: 'user'
     }
   });
-  pipeline.push({ $unwind: { path: '$user', preserveNullAndEmpty: false } });
+  pipeline.push({ $unwind: '$user' });
 
   if (Object.keys(userQuery).length) {
     pipeline.push({ $match: userQuery });

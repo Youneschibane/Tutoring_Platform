@@ -1,31 +1,35 @@
 const Service = require('../models/serviceModel');
 const prof = require('../models/teacherModel');
 const Session = require('../models/sessionModel');
-const multer = require('multer');
-const storage = require('../claudinaryConfig');
-const upload = multer({ storage: storage });
+const Education = require('../models/educationModel');
 
 
+const getAllowedCycles = (mainCycle) => {
+  const hierarchy = {
+    "Lycee": ["Lycee", "College", "Primaire"],
+    "College": ["College", "Primaire"],
+    "Primaire": ["Primaire"],
+    "ESI": ["ESI"]
+  };
+  return hierarchy[mainCycle] || [mainCycle];
+};
+
+const isMatiereValidForCycle = async (cycle, matiere) => {
+  const record = await Education.findOne({
+    cycle: cycle,
+    subjects: matiere   // si matiere est dans le tableau subjects
+  });
+  return record !== null;
+};
 
 const getProfSubjects = async (req, res) => {
-  const { id } = req.query;
-
   try {
+    const id = req.user.idmembre; 
     const teacher = await prof.findOne({ id_enseignant: id });
 
     if (!teacher) {
       return res.status(404).json({ success: false, message: "Enseignant non trouvé" });
     }
-
-    const getAllowedCycles = (mainCycle) => {
-      const hierarchy = {
-        "Secondaire": ["Secondaire", "Moyen", "Primaire"],
-        "Moyen": ["Moyen", "Primaire"],
-        "Primaire": ["Primaire"],
-        "ESI": ["ESI"]
-      };
-      return hierarchy[mainCycle] || [mainCycle];
-    };
 
     const subjectsWithPermissions = teacher.subjects.map(subj => {
       const mainCycle = subj.cycle; 
@@ -50,7 +54,8 @@ const getProfSubjects = async (req, res) => {
 
 const createService = async (req, res) => {
   try {
-    const { id_enseignant } = req.body;
+    const id_enseignant = req.user.idmembre;
+    const { matiere, niveau_concerne, ...rest } = req.body;
 
     const profFound = await prof.findOne({ id_enseignant: id_enseignant });
     // if le prof existe
@@ -60,12 +65,34 @@ const createService = async (req, res) => {
         message: `L'enseignant avec l'ID ${id_enseignant} n'existe pas dans la base.` 
       });
     }
+        if (!matiere || !niveau_concerne) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Les champs 'matiere' et 'niveau_concerne' sont obligatoires."
+      });
+    }
 
+
+    const matiereReconnue = await isMatiereValidForCycle(niveau_concerne, matiere);
+    if (!matiereReconnue) {
+      return res.status(400).json({
+        status: "fail",
+        message: `La matière "${matiere}" n'est pas enseignée dans le cycle "${niveau_concerne}" selon le programme officiel.`
+      });
+    }
+
+
+    const estQualifie = profFound.subjects.some(
+      sub => sub.name === req.body.matiere && getAllowedCycles(sub.cycle).includes(req.body.niveau_concerne)
+    );
+    if (!estQualifie) return res.status(403).json({ message: "Non qualifié pour cette matière/niveau." });
+    //check if les champs obligatoiree sont entrées
     const lastService = await Service.findOne().sort({ id_service: -1 });
     const nextId = lastService ? lastService.id_service + 1 : 1;
 
     const newService = new Service({
       id_service: nextId,
+      id_enseignant: id_enseignant,
       isDeleted : false,
       ...req.body
 
@@ -90,8 +117,7 @@ const getMyservice = async (req , res) =>
   {
 
   try{
-  const {id_enseignant} = req.query;
-
+  const id_enseignant = req.user.idmembre;
 
   //if le id du prof n est pas valide 
   if (!id_enseignant) {
@@ -125,17 +151,16 @@ const getMyservice = async (req , res) =>
   }
 }
 
-const addSession = async (req, res) => {
+const addSession = async (req, res ) => {
   try {
+    const id_enseignant = req.user.idmembre;
     const { 
-      id_enseignant, 
       id_service, 
       titre, 
       date_seance, 
       heure_debut, 
       heure_fin, 
       mode,
-      type_seance,
       nombre_max_participants,
       lieu,
       lien_visio,
@@ -158,14 +183,22 @@ const addSession = async (req, res) => {
     }
 
     const tuteur = await prof.findOne({ id_enseignant: id_enseignant });
-    const serviceFound = await Service.findOne({ id_service: id_service });
-
+    const serviceFound = await Service.findOne({ id_service: id_service  , isDeleted : false });
     if (!tuteur || !serviceFound) {
       return res.status(404).json({
         status: "fail",
         message: "L'enseignant ou le service n'existe pas."
       });
     }
+
+    if(serviceFound.actif === false){
+            return res.status(404).json({
+        status: "fail",
+        message: "le service n'est pas actif."
+      });
+
+    }
+
     // on doit tester si le service est lancé par ce prof 
     if (serviceFound.id_enseignant !== id_enseignant) {
       return res.status(403).json({
@@ -206,6 +239,12 @@ const addSession = async (req, res) => {
       });
     }
 
+    if (prix !== undefined && prix < 0)
+  return res.status(400).json({ message: "Le prix ne peut pas être négatif." });
+
+  if (nombre_max_participants !== undefined && nombre_max_participants < 1)
+    return res.status(400).json({ message: "Au moins 1 participant requis." });
+
     const newSeance = new Session({
       titre, 
       service: serviceFound._id, 
@@ -214,7 +253,6 @@ const addSession = async (req, res) => {
       heure_debut,
       heure_fin,
       mode,
-      type_seance,
       nombre_max_participants: nombre_max_participants || serviceFound.nombre_max_participants,
       lieu: mode === "presentiel" ? lieu : undefined,
       lien_visio: mode === "en_ligne" ? lien_visio : undefined,
@@ -240,7 +278,6 @@ const addSession = async (req, res) => {
   }
 };
 
-
 const getServiceSessions = async (req, res) => {
   try {
     const { id_service } = req.query;
@@ -248,8 +285,18 @@ const getServiceSessions = async (req, res) => {
     if (!id_service) {
       return res.status(400).json({ status: "fail", message: "ID service requis." });
     }
+    const serviceFound = await Service.findOne({ id_service });
 
-    const sessions = await Session.find({ service: id_service }) 
+    if(!serviceFound){
+        return res.status(404).json({
+        status: "fail",
+        message: "Service non trouvé."
+      });
+
+
+    }
+
+    const sessions = await Session.find({ service: serviceFound._id }) 
       .sort({ date_seance: 1, heure_debut: 1 });
 
     if (!sessions || sessions.length === 0) {
@@ -272,22 +319,57 @@ const getServiceSessions = async (req, res) => {
 
 const updateService = async (req, res) => {
   try {
+    const id_enseignant_auth = req.user.idmembre;
     const { id_service } = req.query;
-    const { id_enseignant_auth, ...updates } = req.body;
- 
+    const { ...updates } = req.body; 
     
-    const service = await Service.findOne({ id_service });
+    const service = await Service.findOne({ id_service  , isDeleted : false});
 
         if (!service) {
       return res.status(404).json({ status: "fail", message: "Service introuvable!" });
     }
-
-    if (Number(service.id_enseignant) !== Number(id_enseignant_auth)) {
+    if (service.id_enseignant !== id_enseignant_auth) {
       return res.status(403).json({ 
         status: "fail", 
         message: "Sécurité : Tentative de modification d'un service tiers détectée!" 
       });
     }
+
+    if (service.actif === false) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Un service archivé ne peut plus être modifié!"
+      });
+    }
+
+
+    const matiereCible = updates.matiere || service.matiere;
+    const cycleCible = updates.niveau_concerne || service.niveau_concerne;
+
+    const matiereReconnue = await isMatiereValidForCycle(cycleCible, matiereCible);
+    if (!matiereReconnue) {
+      return res.status(400).json({
+        status: "fail",
+        message: `La matière "${matiereCible}" n'est pas enseignée dans le cycle "${cycleCible}" selon le programme officiel.`
+      });
+    }
+    const tuteur = await prof.findOne({ id_enseignant: id_enseignant_auth });
+      
+      if (!tuteur || !tuteur.subjects) {
+        return res.status(404).json({ status: "fail", message: "Profil enseignant introuvable." });
+      }
+
+      const estQualifie = tuteur.subjects.some(sub => 
+        sub.name === matiereCible && getAllowedCycles(sub.cycle).includes(cycleCible)
+      );
+
+      if (!estQualifie) {
+        return res.status(400).json({
+          status: "fail",
+          message: `Incohérence : Vous n'êtes pas autorisé à enseigner ${matiereCible} au niveau ${cycleCible}.`
+        });
+      }
+    ;
 
         if (service.actif === false) {
       return res.status(400).json({ 
@@ -329,10 +411,17 @@ const updateService = async (req, res) => {
 const updateSession = async (req, res) => {
   try {
     const { id_seance } = req.query;
-    const { id_enseignant_auth, ...updates } = req.body;
+    const { ...updates } = req.body;
+    const id_enseignant_auth = req.user.idmembre; 
 
-    const seance = await Session.findById(id_seance);
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
+        const seance = await Session.findById(id_seance);
     if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
+
+
+    if (!profDoc || String(seance.enseignant) !== String(profDoc._id)) {
+        return res.status(403).json({ status: "fail", message: "Accès refusé." });
+    }
 
     // on doit vérifier si la séance est trop proche (Moins de 2h)
 
@@ -356,30 +445,27 @@ if (differenceMS < 0) {
   });
 }
 
-if (String(seance.enseignant) !== String(id_enseignant_auth)) {
-    return res.status(403).json({ status: "fail", message: "Accès refusé." });
-}
     if (updates.date_seance || updates.heure_debut || updates.heure_fin) {
       const d = updates.date_seance || seance.date_seance;
       const h_debut = updates.heure_debut || seance.heure_debut;
       const h_fin = updates.heure_fin || seance.heure_fin;
+      const conflit = await Session.findOne({ 
+      _id: { $ne: seance._id }, 
+      enseignant: profDoc._id, 
+      date_seance: d, 
+      $or: [
+        { heure_debut: { $lt: h_fin }, heure_fin: { $gt: h_debut } }
+      ] 
+    });
 
-      const conflit = await Session.findOne({
-        _id: { $ne: seance._id },
-        enseignant: id_enseignant_auth,
-        date_seance: d,
-        $or: [{ heure_debut: { $lt: h_fin }, heure_fin: { $gt: h_debut } }]
+    if (conflit) {
+      return res.status(400).json({ 
+        status: "fail", 
+        message: `Conflit d'horaire avec la séance "${conflit.titre}".` 
       });
-
-      if (conflit) {
-        return res.status(400).json({
-          status: "fail",
-          message: `Conflit d'horaire avec la séance "${conflit.titre}".`
-        });
-      }
     }
-
-    Object.keys(updates).forEach(key => seance[key] = updates[key]);
+    }
+    Object.assign(seance, updates);
     await seance.save();
 
     res.status(200).json({ status: "success", data: seance });
@@ -392,9 +478,9 @@ if (String(seance.enseignant) !== String(id_enseignant_auth)) {
 const deleteService = async (req , res)=> {
 try {
     const { id_service } = req.query;
-    const { id_enseignant_auth } = req.body;
+    const id_enseignant_auth = req.user.idmembre;
 
-    const service = await Service.findOne({ id_service });
+    const service = await Service.findOne({ id_service , isDeleted : false });
     if (!service) return res.status(404).json({ status: "fail", message: "Service introuvable." });
 
     if (service.id_enseignant !== id_enseignant_auth) {
@@ -452,13 +538,16 @@ try {
 const deleteSession = async (req, res) => {
   try {
     const { id_seance } = req.query;
-    const { id_enseignant_auth, motif_annulation } = req.body;
+    const { motif_annulation } = req.body;
+    const id_enseignant_auth = req.user.idmembre; 
 
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
     const seance = await Session.findById(id_seance);
     if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
 
-    if (String(seance.enseignant) !== String(id_enseignant_auth)) {
-      return res.status(403).json({ status: "fail", message: "Accès refusé : Ce n'est pas votre séance." });
+
+    if (!profDoc || String(seance.enseignant) !== String(profDoc._id)) {
+        return res.status(403).json({ status: "fail", message: "Accès refusé." });
     }
 
     const debutSeance = new Date(`${seance.date_seance}T${seance.heure_debut}:00`);
@@ -513,4 +602,3 @@ module.exports = {
   deleteService,
   deleteSession,
 }
-
