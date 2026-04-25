@@ -39,7 +39,7 @@ exports.suspendreService = async (req, res) => {
         suspensionReason: reason,
         actif:            false   // désactiver aussi le service
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     // Notifier le teacher — fire and forget
@@ -98,7 +98,7 @@ exports.reactiverService = async (req, res) => {
         suspensionReason: null,
         actif:            true
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     // Notifier le teacher — fire and forget
@@ -190,27 +190,83 @@ exports.supprimerService = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // Lister tous les services (admin — avec filtre statut)
 // ─────────────────────────────────────────────────────────────
+
+
 exports.getAllServices = async (req, res) => {
   try {
+    // ── Pagination sécurisée ───────────────────
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 10);
+    const skip  = (page - 1) * limit;
+
     const { statut } = req.query;
-    // statut: 'actif' | 'suspendu' | 'supprime' | undefined (tous)
 
     const query = {};
-    if (statut === 'actif')     { query.isDeleted = false; query.suspendu = false; }
-    if (statut === 'suspendu')  { query.isDeleted = false; query.suspendu = true;  }
-    if (statut === 'supprime')  { query.isDeleted = true;  }
 
-    const services = await Service.find(query)
-      .select('id_service id_enseignant nom_service matiere actif suspendu isDeleted suspensionReason suspendedAt date_creation')
-      .sort({ date_creation: -1 });
+    // ── Filtrage propre (SANS utiliser actif) ──
+    switch (statut) {
 
+      case 'actif':
+        query.isDeleted = false;
+        query.actif=true;
+        break;
+
+      case 'suspendu':
+        query.isDeleted = false;
+        query.suspendu = true;
+        break;
+
+      case 'supprime':
+        query.isDeleted = true;
+        break;
+
+      case undefined:
+      case 'all':
+        // aucun filtre → tous les services
+        break;
+
+      default:
+        return res.status(400).json({
+          status: 'fail',
+          message: 'Invalid statut filter'
+        });
+    }
+
+    // ── Requête optimisée ──────────────────────
+    const [services, total] = await Promise.all([
+
+      Service.find(query)
+        .select('-__v')
+        .populate({
+          path: 'suspendedBy',
+          select: 'firstname familyname email'
+        })
+        .sort({ date_creation: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      Service.countDocuments(query)
+
+    ]);
+
+    // ── Réponse ───────────────────────────────
     return res.status(200).json({
       status: 'success',
-      total:  services.length,
-      data:   services
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      limit,
+      data: services
     });
 
   } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    console.error('getAllServices error:', error);
+
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
   }
 };

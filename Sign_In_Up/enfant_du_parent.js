@@ -15,6 +15,7 @@ exports.ajouterEnfant = async (req, res) => {
   try {
     const { firstname, familyname } = req.body;
 
+    // ── VALIDATION ─────────────────────────────
     if (!firstname || !familyname) {
       return res.status(400).json({
         status: 'fail',
@@ -22,91 +23,157 @@ exports.ajouterEnfant = async (req, res) => {
       });
     }
 
-    // Récupérer le profil parent via idmembre du user connecté
-    const parent = await Parent.findOne({ id_parent: req.user.idmembre }).session(session);
+    // ── GET PARENT ─────────────────────────────
+    const parent = await Parent.findOne({
+      id_parent: req.user.idmembre
+    }).session(session);
+
     if (!parent) {
-      return res.status(404).json({ status: 'fail', message: "Profil parent introuvable." });
+      return res.status(404).json({
+        status: 'fail',
+        message: "Profil parent introuvable."
+      });
     }
 
+    // ── CREATE STUDENT ─────────────────────────
     const childId = await getNextId('student');
 
-    const newChild = new Student({
-      id_eleve:   childId,
-      id_parent:  req.user.idmembre,
+    const newChildArr = await Student.create([{
+      id_eleve: childId,
+      id_parent: req.user.idmembre
+    }], { session });
+
+    const student = newChildArr[0];
+
+    // ── UPDATE PARENT (snapshot) ───────────────
+    parent.enfants.push({
+      student: student._id,
       firstname,
       familyname
     });
 
-    await newChild.save({ session });
-
-    parent.enfants.push(newChild._id);
     await parent.save({ session });
 
     await session.commitTransaction();
 
     return res.status(201).json({
-      status:  'success',
+      status: 'success',
       message: "Enfant ajouté avec succès.",
-      data:    newChild
+      data: {
+        _id: student._id,
+        id_eleve: student.id_eleve,
+        firstname,
+        familyname
+      }
     });
 
   } catch (error) {
     await session.abortTransaction();
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+
   } finally {
     session.endSession();
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // Modifier un enfant
 // ─────────────────────────────────────────────────────────────
 exports.modifierEnfant = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { id_eleve } = req.params; // id_eleve (Number)
+    const { id_parent} = req.body;
+    const { id_eleve } = req.params;
     const { firstname, familyname } = req.body;
+
+    // ── VALIDATION ─────────────────────────────
+    if (!id_parent || !id_eleve) {
+      return res.status(400).json({
+        status: 'fail',
+        message: "id_parent et id_eleve sont obligatoires."
+      });
+    }
 
     if (!firstname && !familyname) {
       return res.status(400).json({
         status: 'fail',
-        message: "Au moins un champ à modifier est requis (firstname ou familyname)."
+        message: "Au moins un champ à modifier est requis."
       });
     }
 
-    // Vérifier que l'enfant appartient bien à ce parent
-    const child = await Student.findOne({
-      id_eleve:  Number(id_eleve),
-      id_parent: req.user.idmembre
-    });
+    // ── FIND STUDENT ───────────────────────────
+    const student = await Student.findOne({
+      id_eleve: Number(id_eleve),
+      id_parent: Number(id_parent)
+    }).session(session);
 
-    if (!child) {
+    if (!student) {
       return res.status(404).json({
         status: 'fail',
-        message: "Enfant introuvable ou vous n'êtes pas autorisé à le modifier."
+        message: "Student introuvable."
       });
     }
 
-    const updates = {};
-    if (firstname)  updates.firstname  = firstname;
-    if (familyname) updates.familyname = familyname;
+    // ── FIND PARENT ────────────────────────────
+    const parent = await Parent.findOne({
+      id_parent: Number(id_parent)
+    }).session(session);
 
-    const updatedChild = await Student.findOneAndUpdate(
-      { id_eleve: Number(id_eleve), id_parent: req.user.idmembre },
-      { $set: updates },
-      { new: true, runValidators: true }
+    if (!parent) {
+      return res.status(404).json({
+        status: 'fail',
+        message: "Parent introuvable."
+      });
+    }
+
+    // ── FIND CHILD IN PARENT ARRAY ────────────
+    const index = parent.enfants.findIndex(
+      e => e.student.toString() === student._id.toString()
     );
 
+    if (index === -1) {
+      return res.status(404).json({
+        status: 'fail',
+        message: "Enfant non trouvé dans le parent."
+      });
+    }
+
+    // ── UPDATE SNAPSHOT ────────────────────────
+    if (firstname) {
+      parent.enfants[index].firstname = firstname;
+    }
+
+    if (familyname) {
+      parent.enfants[index].familyname = familyname;
+    }
+
+    await parent.save({ session });
+
+    await session.commitTransaction();
+
     return res.status(200).json({
-      status:  'success',
+      status: 'success',
       message: "Enfant mis à jour avec succès.",
-      data:    updatedChild
+      data: parent.enfants[index]
     });
 
   } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
+    await session.abortTransaction();
+
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+
+  } finally {
+    session.endSession();
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // Supprimer un enfant
 // ─────────────────────────────────────────────────────────────
@@ -117,59 +184,88 @@ exports.supprimerEnfant = async (req, res) => {
   try {
     const { id_eleve } = req.params;
 
-    // Vérifier que l'enfant appartient bien à ce parent
+    // ── FIND STUDENT ───────────────────────────
     const child = await Student.findOne({
-      id_eleve:  Number(id_eleve),
+      id_eleve: Number(id_eleve),
       id_parent: req.user.idmembre
     }).session(session);
 
     if (!child) {
       return res.status(404).json({
         status: 'fail',
-        message: "Enfant introuvable ou vous n'êtes pas autorisé à le supprimer."
+        message: "Enfant introuvable ou non autorisé."
       });
     }
 
-    // Supprimer l'enfant
+    // ── DELETE STUDENT ─────────────────────────
     await Student.findByIdAndDelete(child._id).session(session);
 
-    // Retirer l'enfant du tableau du parent
-    await Parent.findOneAndUpdate(
+    // ── REMOVE FROM PARENT SNAPSHOT ───────────
+    await Parent.updateOne(
       { id_parent: req.user.idmembre },
-      { $pull: { enfants: child._id } },
+      {
+        $pull: {
+          enfants: {
+            student: child._id
+          }
+        }
+      },
       { session }
     );
 
     await session.commitTransaction();
 
     return res.status(200).json({
-      status:  'success',
+      status: 'success',
       message: "Enfant supprimé avec succès."
     });
 
   } catch (error) {
     await session.abortTransaction();
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+
   } finally {
     session.endSession();
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // Récupérer tous les enfants d'un parent
 // ─────────────────────────────────────────────────────────────
 exports.getMesEnfants = async (req, res) => {
   try {
-    const enfants = await Student.find({ id_parent: req.user.idmembre })
-      .select('id_eleve firstname familyname ');
+
+    const parent = await Parent.findOne(
+      { id_parent: req.user.idmembre }
+    ).populate('enfants.student');
+
+    if (!parent) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Parent not found'
+      });
+    }
+
+    const enfants = parent.enfants.map(e => ({
+      _id: e.student?._id,
+      id_eleve: e.student?.id_eleve,
+      firstname: e.firstname,
+      familyname: e.familyname
+    }));
 
     return res.status(200).json({
-      status:  'success',
-      total:   enfants.length,
-      data:    enfants
+      status: 'success',
+      total: enfants.length,
+      data: enfants
     });
 
   } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
   }
 };

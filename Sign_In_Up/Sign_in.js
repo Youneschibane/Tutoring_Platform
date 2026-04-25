@@ -124,7 +124,7 @@ const signIn = async (req, res) => {
           location: device?.location || 'Position inconnue'
         },
         {
-          new: true,
+          returnDocument: "after",
           upsert: true // <-- Permet de créer le document s'il n'existe pas encore
         }
       );

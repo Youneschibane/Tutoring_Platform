@@ -89,7 +89,7 @@ const performUpdate = async (req, res, roleConfig) => {
             updatedUser = await User.findByIdAndUpdate(
                 userId,
                 { $set: userUpdates },
-                { new: true, runValidators: true, session }
+                { returnDocument: "after", runValidators: true, session }
             ).select("-password");
         }
 
@@ -110,7 +110,7 @@ const performUpdate = async (req, res, roleConfig) => {
             updatedSpecific = await model.findOneAndUpdate(
                 { [idField]: memberId },
                 { $set: roleUpdates },
-                { new: true, runValidators: true, session }
+                { returnDocument: "after", runValidators: true, session }
             );
         } else {
             // Fetch pour pouvoir le retourner même s'il n'y a pas de mise à jour spécifique au rôle

@@ -90,7 +90,7 @@ seanceSchema.pre("save", async function (next) {
     const counter = await Counter.findByIdAndUpdate(
       "seances",            // _id du compteur
       { $inc: { seq: 1 } }, // incrémenter seq de 1
-      { new: true, upsert: true }
+      { returnDocument: "after", upsert: true }
     );
     this.id_seance = counter.seq;
   }

@@ -12,26 +12,108 @@ const sendEmail = require('../utils/sendEmail');
  * - Filtre: acceptanceStatus = 'pending'
  * - Tri: par createdAt ascendant (queue FIFO)
  * - Retour: total count + tableau de données
- */
-exports.getPendingTeachers = async (req, res) => {
+ */exports.getPendingTeachers = async (req, res) => {
   try {
-    const pending = await Teacher.find({ acceptanceStatus: 'pending' })
-      .select('id_enseignant firstname familyname email numberphone createdAt photo_profil nature subjects')
-      .sort({ createdAt: 1 })
-      .lean();
+
+    const page = req.query.page * 1 || 1;
+    const limit = req.query.limit * 1 || 10;
+    const skip = (page - 1) * limit;
+
+    const result = await Teacher.aggregate([
+      // ─────────────────────────────
+      // 1. Filter pending teachers
+      // ─────────────────────────────
+      {
+        $match: {
+          acceptanceStatus: 'pending'
+          
+        }
+      },
+
+      // ─────────────────────────────
+      // 2. Join with User collection
+      // ─────────────────────────────
+      {
+        $lookup: {
+          from: 'users', // ⚠️ must match Mongo collection name
+          localField: 'id_enseignant',
+          foreignField: 'idmembre',
+          as: 'user'
+        }
+      },
+
+      // ─────────────────────────────
+      // 3. Unwrap user array
+      // ─────────────────────────────
+      {
+        $unwind: {
+          path: '$user',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // ─────────────────────────────
+      // 4. Shape final output
+      // ─────────────────────────────
+      {
+        $project: {
+          _id: 1,
+          id_enseignant: 1,
+          acceptanceStatus: 1,
+          nature: 1,
+          subjects: 1,
+          rating: 1,
+          createdAt: 1,
+
+          // USER DATA
+          firstname: '$user.firstname',
+          familyname: '$user.familyname',
+          email: '$user.email',
+          numberphone: '$user.numberphone',
+          photo_profil: '$user.photo_profil'
+        }
+      },
+
+      // ─────────────────────────────
+      // 5. Sort
+      // ─────────────────────────────
+      {
+        $sort: {
+          createdAt: -1
+        }
+      },
+
+      // ─────────────────────────────
+      // 6. Pagination
+      // ─────────────────────────────
+      { $skip: skip },
+      { $limit: limit }
+    ]);
+
+    // ─────────────────────────────
+    // COUNT (separate fast query)
+    // ─────────────────────────────
+    const total = await Teacher.countDocuments({
+      acceptanceStatus: 'pending'
+    });
 
     return res.status(200).json({
       status: 'success',
-      message: 'Enseignants en attente de validation récupérés',
-      total: pending.length,
-      data: pending
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      data: result
     });
+
   } catch (error) {
     console.error('getPendingTeachers error:', error);
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
   }
 };
-
 /**
  * getTeacherFullProfile
  * Récupère le profil complet d'un enseignant + ses documents
@@ -104,7 +186,7 @@ exports.acceptTeacher = async (req, res) => {
         reviewedAt: new Date(),
         reviewedBy: adminId
       },
-      { new: true, runValidators: false }
+      { returnDocument: "after", runValidators: false }
     );
 
     if (!teacher) {
@@ -174,7 +256,7 @@ exports.rejectTeacher = async (req, res) => {
         reviewedAt: new Date(),
         reviewedBy: adminId
       },
-      { new: true, runValidators: false }
+      { returnDocument: "after", runValidators: false }
     );
 
     if (!teacher) {

@@ -91,7 +91,7 @@ const bookSession = async (req, res) => {
         $push: { etudiants: studentToBook._id }
       },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true
       }
     ).populate('service enseignant', 'nom prenom titre');

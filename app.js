@@ -88,6 +88,15 @@ app.use('/api/teacher', teacherStatusRoutes);
 // Documentation API — accessible sur http://localhost:3000/api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+
+
+
+
+
+
+
+
+
 // =====================
 // 404 HANDLER
 // =====================
