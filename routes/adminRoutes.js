@@ -21,8 +21,8 @@ router.post('/students/search' ,searchStudents);
 
 
 router.get('/education',                      getAllLevels);
-router.patch('/education/:id/add-subject',    addSubject);
-router.patch('/education/:id/remove-subject', removeSubject);
+router.patch('/education/add-subject',    addSubject);
+router.patch('/education/remove-subject', removeSubject);
 router.get('/education/options',  getOptions);
 router.get('/education/subjects', getSubjects);
 router.get('/education/cycles',   getCycles);
