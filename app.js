@@ -13,16 +13,9 @@ const devisRouter = require('./routes/devisRoutes');
 const specialtyRouter = require('./routes/specialityRouter');
 const locationRoutes = require('./routes/locationRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
-const statistic = require('./routes/profRoutes');
-
-
+const adminRoutes = require('./routes/adminRoutes');
 const documentRoutes = require('./routes/documentRoutes');
-
-
-
-
-
-
+const statistic = require('./routes/profRoutes')
 const app = express();
 // need to remove it 
 app.use(express.static(__dirname));
@@ -61,9 +54,11 @@ app.use('/api/service' , serviceRoutes);
 //router pour les documents
 app.use('/api/documents', documentRoutes); 
 
+//router pour l admin
+app.use('/api/admin', adminRoutes);
+
 //router pour les statistic de prof
 app.use('/api/prof', statistic)
-
 // =====================
 // 404 HANDLER
 // =====================

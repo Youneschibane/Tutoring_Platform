@@ -24,7 +24,11 @@ let service=new mongoose.Schema({
   matiere:{type:String,required:true},
 
   
+<<<<<<< HEAD
   niveau_concerne:{type:String,required:true,enum:["Primaire","College","Lycee","ESI"]},
+=======
+  niveau_concerne:{type:String,required:true,enum:["Primaire","College","Lycée","ESI"]},
+>>>>>>> main
 
   annee_concerne:{type:String , required:true},
 

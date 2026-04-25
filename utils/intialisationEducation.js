@@ -22,6 +22,8 @@ const Data = [
   // -------------------------------------------------------------------------
   { cycle: "Lycee", level: 1, levelName: "1AS", specialty: "Sciences et Technologies", subjects: ["Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ,"Génie Civil" , "Éducation Islamique", "Technologie"] },
   { cycle: "Lycee", level: 1, levelName: "1L", specialty: "Lettres", subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ] },
+  { cycle: "Lycee", level: 1, levelName: "1AS", specialty: "Sciences et Technologies", subjects: ["Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ,"Génie Civil" , "Éducation Islamique", "Technologie"] },
+  { cycle: "Lycee", level: 1, levelName: "1L", specialty: "Lettres", subjects: ["Éducation Islamique","Mathématiques", "Physique", "SVT", "Arabe", "Français", "Anglais", "Histoire-Géo", "Informatique" ] },
   { 
     cycle: "Lycee", level: 2, levelName: "2ASS", specialty: "Sciences Expérimentales", 
     subjects: ["Éducation Islamique","SVT", "Physique", "Mathématiques", "Arabe", "Français", "Anglais", "Histoire-Géo"] 
@@ -43,6 +45,7 @@ const Data = [
   { cycle: "Lycee", level: 2, levelName: "2SLE", specialty: "Lettres et Philosophie", 
     subjects: ["Éducation Islamique","Philosophie", "Arabe", "Histoire-Géo", "Français", "Anglais" , "Espagnol" , "Allemand " , "Italien"] 
   },  { 
+    cycle: "Lycee", level: 2, levelName: "3ASS", specialty: "Sciences Expérimentales", 
     cycle: "Lycee", level: 2, levelName: "3ASS", specialty: "Sciences Expérimentales", 
     subjects: ["Éducation Islamique","SVT", "Physique", "Mathématiques", "Arabe", "Français", "Anglais", "Histoire-Géo", "Philosophie"] 
   },
