@@ -61,6 +61,13 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    bannedUntil: { 
+    type: Date, 
+    default: null },
+
+    isActive: {
+     type: Boolean, 
+     default: true },
 
     postaladr: {
         type: Number,
