@@ -10,7 +10,7 @@ let eleve=new mongoose.Schema({
   },
 
 yearOfStudy:{
-    type:Number,
+    type:String,
     required:false
 },
 
