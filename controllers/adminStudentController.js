@@ -195,4 +195,4 @@ const searchStudents = async (req, res) => {
   }
 };
 
-module.exports = { getAllStudents, searchStudents, getCycles, getAnneesByCycle };
+module.exports = { getAllStudents, searchStudents, getAnneesByCycle };
