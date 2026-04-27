@@ -12,51 +12,61 @@ const mongoose = require('mongoose');
 
 
 
+// ─────────────────────────────────────────────
+// sendSignupOtp — accepte email + phone, envoie OTP à l'email uniquement
+// ─────────────────────────────────────────────
 exports.sendSignupOtp = async (req, res) => {
   try {
-    
     if (!req.body || Object.keys(req.body).length === 0) {
-      console.error('sendSignupOtp: empty request body or invalid JSON. content-type=', req.headers['content-type']);
-      return res.status(400).json({ message: 'Body empty or invalid. Ensure Content-Type: application/json and a JSON body is sent.' });
+      return res.status(400).json({ message: 'Body empty or invalid.' });
     }
 
     const { email, phone } = req.body;
 
+    // Au moins un des deux est requis
     if (!email && !phone) {
       return res.status(400).json({ message: "Veuillez fournir un email ou un numéro de téléphone." });
     }
 
-    // basic format validation
+    // Validation email
     if (email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!re.test(email)) {
-        console.error('sendSignupOtp: invalid email format', email);
         return res.status(400).json({ message: "Adresse email invalide." });
       }
     }
+
+    // Validation phone
     if (phone) {
       const phoneRe = /^\+?[0-9]{6,15}$/;
       if (!phoneRe.test(phone)) {
-        console.error('sendSignupOtp: invalid phone format', phone);
         return res.status(400).json({ message: "Numéro de téléphone invalide." });
       }
     }
 
-    const identifier = email || phone;
-    const purpose = 'signup';
-
-       const existingUser = await User.findOne(email ? { email } : { numberphone: phone });
-    if (existingUser) {
-      return res.status(400).json({ message: "Ce contact est déjà utilisé pour un compte existant." });
+    // Vérifier que l'email ou le phone n'est pas déjà utilisé
+    if (email) {
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) {
+        return res.status(400).json({ message: "Cet email est déjà utilisé." });
+      }
     }
 
-    const existingOtp = await Otp.findOne({ identifier, purpose });
+    if (phone) {
+      const existingPhone = await User.findOne({ numberphone: phone });
+      if (existingPhone) {
+        return res.status(400).json({ message: "Ce numéro de téléphone est déjà utilisé." });
+      }
+    }
 
+    //  OTP toujours envoyé à l'email si fourni, sinon au phone
+    const otpTarget = email || phone;
+    const purpose   = 'signup';
+
+    const existingOtp = await Otp.findOne({ identifier: otpTarget, purpose });
     if (existingOtp) {
-      const lastCreated = new Date(existingOtp.createdAt).getTime();
-      const now = Date.now();
-
-      if (now - lastCreated < 60 * 1000) {
+      const elapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
+      if (elapsed < 60 * 1000) {
         return res.status(429).json({ message: "Veuillez attendre 1 minute avant de demander un nouveau code." });
       }
     }
@@ -64,40 +74,42 @@ exports.sendSignupOtp = async (req, res) => {
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     await Otp.findOneAndUpdate(
-      { identifier, purpose },
-      { identifier, purpose, otp: newOtpCode, createdAt: new Date() },
-      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      { identifier: otpTarget, purpose },
+      { identifier: otpTarget, purpose, otp: newOtpCode, createdAt: new Date() },
+      { upsert: true, setDefaultsOnInsert: true }
     );
 
+    // Envoi OTP — email prioritaire, phone en fallback
     if (email) {
       await sendEmail({
         email,
         subject: 'Votre code de vérification',
         message: `Votre code est : ${newOtpCode}. Valide pour 10 minutes.`
       });
-    } else if (phone) {
+    } else {
       await sendSms({
         phone,
         message: `Votre code de vérification PRJP10 est : ${newOtpCode}.`
       });
     }
 
-    res.status(200).json({
-      //add the optcode 
-      status: 'success',
-      message: `Code envoyé avec succès sur votre ${email ? 'email' : 'téléphone'} !
-      Code : ${newOtpCode} `
-  
-      
+    return res.status(200).json({
+      status:  'success',
+      message: `Code envoyé sur votre ${email ? 'email' : 'téléphone'} !`,
+      code:    newOtpCode // à retirer en production
     });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
-};exports.verifySignupOtp = async (req, res) => {
+};
+
+// ─────────────────────────────────────────────
+// verifySignupOtp — stocke email ET phone dans le token
+// ─────────────────────────────────────────────
+exports.verifySignupOtp = async (req, res) => {
   try {
     if (!req.body || Object.keys(req.body).length === 0) {
-      console.error('verifySignupOtp: empty body');
       return res.status(400).json({ message: 'Body empty or invalid.' });
     }
 
@@ -105,7 +117,7 @@ exports.sendSignupOtp = async (req, res) => {
 
     email = email?.trim();
     phone = phone?.trim();
-    code = code?.toString().trim();
+    code  = code?.toString().trim();
 
     if (!email && !phone) {
       return res.status(400).json({ message: "Veuillez fournir l'email ou le téléphone." });
@@ -115,7 +127,6 @@ exports.sendSignupOtp = async (req, res) => {
       return res.status(400).json({ message: "Le code OTP est requis." });
     }
 
-    // Email format validation
     if (email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!re.test(email)) {
@@ -123,7 +134,6 @@ exports.sendSignupOtp = async (req, res) => {
       }
     }
 
-    // Phone format validation
     if (phone) {
       const phoneRe = /^\+?[0-9]{6,15}$/;
       if (!phoneRe.test(phone)) {
@@ -131,40 +141,37 @@ exports.sendSignupOtp = async (req, res) => {
       }
     }
 
-    const identifier = email || phone;
-    const purpose = 'signup';
+    // OTP identifier = email si fourni, sinon phone
+    const otpTarget = email || phone;
+    const purpose   = 'signup';
 
-    const record = await Otp.findOne({ identifier, purpose });
+    const record = await Otp.findOne({ identifier: otpTarget, purpose });
+    if (!record)           return res.status(400).json({ message: "Code expiré ou inexistant." });
+    if (record.otp !== code) return res.status(400).json({ message: "Code incorrect." });
 
-    if (!record) {
-      return res.status(400).json({ message: "Code expiré ou inexistant." });
-    }
+    if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not defined");
 
-    if (record.otp !== code) {
-      return res.status(400).json({ message: "Code incorrect." });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET is not defined");
-    }
-
-   const signupToken = jwt.sign(
-      { field: email ? 'email' : 'numberphone', value: identifier },
+    // ✅ Stocker email ET phone dans le token
+    const signupToken = jwt.sign(
+      {
+        email: email || null,   // ← null si non fourni
+        phone: phone || null    // ← null si non fourni
+      },
       process.env.JWT_SECRET,
       { expiresIn: '20m' }
     );
 
-    await Otp.deleteOne({ identifier, purpose });
+    await Otp.deleteOne({ identifier: otpTarget, purpose });
 
-    res.status(200).json({
-      status: 'success',
-      message: `${email ? 'Email' : 'Téléphone'} vérifié avec succès !`,
+    return res.status(200).json({
+      status:      'success',
+      message:     `${email ? 'Email' : 'Téléphone'} vérifié avec succès !`,
       signupToken
     });
 
   } catch (err) {
     console.error('verifySignupOtp error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 // --- Password reset flow ---

@@ -14,36 +14,37 @@ const { v4: uuidv4 } = require('uuid');
 const UAParser = require('ua-parser-js');
 const geoip    = require('geoip-lite');
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // HELPERS
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
+// Rollback tous les fichiers uploadés sur Cloudinary en cas d'erreur
 const rollbackCloudinaryFiles = async (ids = []) => {
   await Promise.allSettled(
     ids.map(id => cloudinary.uploader.destroy(id))
   );
 };
 
-const parseChildren = (children) => {
-  if (!children) return [];
-
-  try {
-    return typeof children === 'string'
-      ? JSON.parse(children)
-      : children;
-  } catch {
-    throw new Error("Invalid children format.");
+// Parser JSON sécurisé pour les champs multipart
+const safeJSON = (value, errorMsg) => {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      throw new Error(errorMsg);
+    }
   }
+  return value;
 };
 
+// Créer et enregistrer le device + JWT après inscription
 const createDevice = async (user, req) => {
   const ip = req.ip || '';
   const ua = req.get('User-Agent') || '';
 
-  const parser = new UAParser(ua);
+  const parser     = new UAParser(ua);
   const deviceName = `${parser.getBrowser().name || 'Unknown'} on ${parser.getOS().name || 'Unknown'}`;
-
-  const geo = geoip.lookup(ip);
+  const geo        = geoip.lookup(ip);
 
   const token = jwt.sign(
     { id: user._id, role: user.role },
@@ -52,40 +53,26 @@ const createDevice = async (user, req) => {
   );
 
   const device = await Device.create({
-    userId: user._id,
+    userId:      user._id,
     deviceToken: uuidv4(),
-    jwtToken: token,
-    userAgent: ua,
-    ipAddress: ip,
+    jwtToken:    token,
+    userAgent:   ua,
+    ipAddress:   ip,
     deviceName,
-    location: geo?.country || 'Unknown',
-    isActive: true,
-    lastUsed: new Date()
+    location:    geo?.country || 'Unknown',
+    isActive:    true,
+    lastUsed:    new Date()
   });
 
   return { device, token };
 };
 
-// ─────────────────────────────────────────────
-// MAIN CONTROLLER
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// COMPLETE PROFILE
+// ═══════════════════════════════════════════════════════════════
 exports.completeProfile = async (req, res) => {
   let session;
-  const uploaded = [];
-
-  // ─────────────────────────────────────────────
-  // SAFE JSON PARSER (IMPORTANT)
-  // ─────────────────────────────────────────────
-  const safeJSON = (value, errorMsg) => {
-    if (typeof value === "string") {
-      try {
-        return JSON.parse(value);
-      } catch (e) {
-        throw new Error(errorMsg);
-      }
-    }
-    return value;
-  };
+  const uploaded = []; // Tracker pour rollback Cloudinary
 
   try {
     session = await mongoose.startSession();
@@ -101,25 +88,26 @@ exports.completeProfile = async (req, res) => {
       ...profileData
     } = req.body;
 
-    // ─────────────────────────────────────────────
-    // VALIDATION
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 1. VALIDATION CHAMPS OBLIGATOIRES
+    // ─────────────────────────────────────────
     if (!signupToken || !password || !role || !firstname || !familyname || !postaladr) {
       throw new Error("Missing required fields.");
     }
 
-    const roles = ['parent', 'student', 'teacher', 'admin'];
-    if (!roles.includes(role)) throw new Error("Invalid role.");
+    const validRoles = ['parent', 'student', 'teacher', 'admin'];
+    if (!validRoles.includes(role)) throw new Error("Invalid role.");
 
-    // ─────────────────────────────────────────────
-    // FIX: MULTIPART JSON FIELDS
-    // ─────────────────────────────────────────────
-    profileData.subjects = safeJSON(profileData.subjects, "Invalid subjects format");
-    profileData.children = safeJSON(profileData.children, "Invalid children format");
+    // ─────────────────────────────────────────
+    // 2. PARSE CHAMPS JSON (multipart/form-data)
+    // subjects et children arrivent en String JSON
+    // ─────────────────────────────────────────
+    profileData.subjects = safeJSON(profileData.subjects, "Invalid subjects format.");
+    profileData.children = safeJSON(profileData.children, "Invalid children format.");
 
-    // ─────────────────────────────────────────────
-    // VERIFY TOKEN
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 3. VÉRIFIER ET DÉCODER LE SIGNUP TOKEN
+    // ─────────────────────────────────────────
     let decoded;
     try {
       decoded = jwt.verify(signupToken, process.env.JWT_SECRET);
@@ -127,58 +115,77 @@ exports.completeProfile = async (req, res) => {
       throw new Error("Invalid or expired token.");
     }
 
-    const contactField = decoded.field === 'phone' ? 'numberphone' : decoded.field;
-    const contact = { [contactField]: decoded.value };
+    // ─────────────────────────────────────────
+    // 4. CONSTRUIRE LE CONTACT — email + phone
+    // Les deux peuvent être présents simultanément
+    // ─────────────────────────────────────────
+    const contact = {};
+    if (decoded.email) contact.email       = decoded.email;
+    if (decoded.phone) contact.numberphone = decoded.phone;
 
-    const exists = await User.findOne(contact).session(session);
+    if (Object.keys(contact).length === 0) {
+      throw new Error("Token invalide — aucun contact trouvé.");
+    }
+
+    // ─────────────────────────────────────────
+    // 5. VÉRIFIER QUE LE USER N'EXISTE PAS DÉJÀ
+    // ─────────────────────────────────────────
+    const orConditions = [
+      ...(decoded.email ? [{ email:       decoded.email }] : []),
+      ...(decoded.phone ? [{ numberphone: decoded.phone }] : [])
+    ];
+
+    const exists = await User.findOne({ $or: orConditions }).session(session);
     if (exists) throw new Error("User already exists.");
 
-    // ─────────────────────────────────────────────
-    // FILES HANDLING (CLOUDINARY)
-    // ─────────────────────────────────────────────
-const photoFile      = req.files?.photo_profil?.[0] || null;
-const photoProfilUrl = photoFile?.path || null;
-if (photoFile?.filename) uploaded.push(photoFile.filename);
+    // ─────────────────────────────────────────
+    // 6. EXTRACTION DES FICHIERS CLOUDINARY
+    // ─────────────────────────────────────────
 
+    // Photo de profil — tous les rôles (optionnel)
+    const photoFile      = req.files?.photo_profil?.[0] || null;
+    const photoProfilUrl = photoFile?.path || null;
+    if (photoFile?.filename) uploaded.push(photoFile.filename);
 
-const cvFile = req.files?.cv?.[0] || null;
+    // CV — teacher uniquement (obligatoire)
+    const cvFile = req.files?.cv?.[0] || null;
+    if (cvFile?.filename) uploaded.push(cvFile.filename);
 
-const cv = cvFile ? {
-  url: cvFile.path,
-  publicId: cvFile.filename,
-  uploadedAt: new Date()
-} : null;
-const diplomes = (req.files?.diplomes || []).map((f, i) => {
-  uploaded.push(f.filename);
+    const cv = cvFile ? {
+      url:        cvFile.path,
+      publicId:   cvFile.filename,
+      uploadedAt: new Date()
+    } : null;
 
-  return {
-    url: f.path,
-    publicId: f.filename,
-    nom: profileData[`diplome_nom_${i}`] || null,
-    uploadedAt: new Date()
-  };
-});
+    // Diplômes — teacher uniquement (min 1 obligatoire)
+    const diplomes = (req.files?.diplomes || []).map((f, i) => {
+      uploaded.push(f.filename);
+      return {
+        url:        f.path,
+        publicId:   f.filename,
+        nom:        profileData[`diplome_nom_${i}`] || null,
+        uploadedAt: new Date()
+      };
+    });
 
-    // ──────
-
-    // ─────────────────────────────────────────────
-    // CREATE USER
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 7. CRÉER LE USER
+    // ─────────────────────────────────────────
     const idmembre = await getNextId('user');
 
     const newUser = await User.create([{
-  firstname,
-  familyname,
-  postaladr,
-  password,
-  role,
-  idmembre,
-  isVerified:   true,
-  isActive:     true,
-  photo_profil: photoProfilUrl,  // ← ajouter cette ligne
-  ...contact,
-  ...profileData
-}], { session });
+      firstname,
+      familyname,
+      postaladr,
+      password,
+      role,
+      idmembre,
+      isVerified:   true,
+      isActive:     true,
+      photo_profil: photoProfilUrl,
+      ...contact,     // email + numberphone
+      ...profileData
+    }], { session });
 
     const user = newUser[0];
 
@@ -192,108 +199,111 @@ const diplomes = (req.files?.diplomes || []).map((f, i) => {
 
     let details;
 
-    // ─────────────────────────────────────────────
-    // ROLE: TEACHER
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 8. CRÉER LE PROFIL SELON LE RÔLE
+    // ─────────────────────────────────────────
+
+    // ── TEACHER ──────────────────────────────
     if (role === 'teacher') {
-  const teacher = await Teacher.create([{
-    ...baseData,
-    id_enseignant:    idmembre,
-    accepted:         false,
-    acceptanceStatus: 'pending',
-    photo_profil:     photoProfilUrl,
-    documents: {
-      cv,
-      diplomes   // 
+
+      // Validation documents obligatoires
+      if (!cv) {
+        throw new Error("Le CV est obligatoire pour les enseignants.");
+      }
+      if (!diplomes.length) {
+        throw new Error("Au moins un diplôme est obligatoire pour les enseignants.");
+      }
+
+      const teacher = await Teacher.create([{
+        ...baseData,
+        id_enseignant:    idmembre,
+        accepted:         false,
+        acceptanceStatus: 'pending',
+        photo_profil:     photoProfilUrl,
+        documents: { cv, diplomes }
+      }], { session });
+
+      details = teacher[0];
     }
-  }], { session });
 
-  details = teacher[0];
-}
-
-    // ─────────────────────────────────────────────
-    // ROLE: STUDENT
-    // ─────────────────────────────────────────────
+    // ── STUDENT ───────────────────────────────
     else if (role === 'student') {
+
       const student = await Student.create([{
         ...baseData,
-        id_eleve: idmembre,
+        id_eleve:     idmembre,
         photo_profil: photoProfilUrl
       }], { session });
 
       details = student[0];
     }
 
-    // ─────────────────────────────────────────────
-    // ROLE: PARENT
-    // ─────────────────────────────────────────────
+    // ── PARENT ────────────────────────────────
     else if (role === 'parent') {
+
       const children = profileData.children || [];
 
       if (!Array.isArray(children) || children.length === 0) {
-        throw new Error("At least one child required.");
+        throw new Error("Au moins un enfant est requis pour un compte parent.");
       }
 
       const parent = new Parent({
-        id_parent: idmembre,
-        enfants: [],
+        id_parent:    idmembre,
+        enfants:      [],
         photo_profil: photoProfilUrl
       });
 
       for (const child of children) {
         if (!child.firstname || !child.familyname) {
-          throw new Error("Each child must have firstname and familyname.");
+          throw new Error("Chaque enfant doit avoir un prénom et un nom de famille.");
         }
 
         const childId = await getNextId('student');
 
         const newChild = await Student.create([{
-          id_eleve: childId,
-          id_parent: idmembre,
-          firstname: child.firstname,
+          id_eleve:   childId,
+          id_parent:  idmembre,
+          firstname:  child.firstname,
           familyname: child.familyname
         }], { session });
 
-        const student = newChild[0];
-
-        parent.enfants.push({
-          student: student._id,
-          firstname: student.firstname,
-          familyname: student.familyname
-        });
+        // Stocker directement l'ObjectId — compatible avec bookSession isChild check
+        parent.enfants.push(newChild[0]._id);
       }
 
       await parent.save({ session });
       details = parent;
     }
 
-    // ─────────────────────────────────────────────
-    // ROLE: ADMIN
-    // ─────────────────────────────────────────────
+    // ── ADMIN ─────────────────────────────────
     else if (role === 'admin') {
+
       const admin = await Admin.create([{
         ...baseData,
-        id_admin: idmembre,
+        id_admin:     idmembre,
         photo_profil: photoProfilUrl
       }], { session });
 
       details = admin[0];
     }
 
-    // ─────────────────────────────────────────────
-    // COMMIT TRANSACTION
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 9. COMMIT TRANSACTION
+    // ─────────────────────────────────────────
     await session.commitTransaction();
 
-    // ─────────────────────────────────────────────
-    // DEVICE CREATION
-    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────
+    // 10. CRÉER LE DEVICE + JWT
+    // Hors transaction — failure non bloquante
+    // ─────────────────────────────────────────
     let deviceData;
     let token;
 
     try {
       ({ device: deviceData, token } = await createDevice(user, req));
     } catch (e) {
+      console.error("Device registration failed:", e.message);
+      // Générer le token quand même pour ne pas bloquer l'inscription
       token = jwt.sign(
         { id: user._id, role: user.role },
         process.env.JWT_SECRET,
@@ -301,6 +311,9 @@ const diplomes = (req.files?.diplomes || []).map((f, i) => {
       );
     }
 
+    // ─────────────────────────────────────────
+    // 11. RÉPONSE
+    // ─────────────────────────────────────────
     return res.status(201).json({
       status: 'success',
       token,
@@ -312,16 +325,15 @@ const diplomes = (req.files?.diplomes || []).map((f, i) => {
     });
 
   } catch (err) {
-    if (session?.inTransaction()) {
-      await session.abortTransaction();
-    }
+    if (session?.inTransaction()) await session.abortTransaction();
 
+    // Rollback tous les fichiers Cloudinary uploadés
     await rollbackCloudinaryFiles(uploaded);
 
-    console.log(err);
+    console.error("completeProfile error:", err.message);
 
     return res.status(400).json({
-      status: 'fail',
+      status:  'fail',
       message: err.message
     });
 

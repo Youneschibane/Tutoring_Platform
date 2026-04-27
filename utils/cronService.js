@@ -1,51 +1,54 @@
 const cron = require('node-cron');
 const { permanentlyDeleteExpiredAccounts } = require('./accountDeletionService');
+const { 
+  permanentDeleteAccountsCronJob, 
+  cleanupExpiredArchivesCronJob, 
+  notifyPendingDeletedAccountsCronJob 
+} = require('./accountDeletionCronService');
 
-let cronJob = null;
+let cronJobs = [];
 
 /**
- * Initialize cron jobs for account deletion
- * Runs daily at 2 AM to check for expired accounts
+ * Initialize cron jobs for account deletion and archival
  */
 exports.initializeCronJobs = () => {
   try {
-    // Schedule task to run every day at 2 AM
-    cronJob = cron.schedule('0 2 * * *', async () => {
-      console.log('\n🔄 Running scheduled account deletion job...');
-      
-      try {
-        const result = await permanentlyDeleteExpiredAccounts();
-        console.log(`✓ Deletion job completed: ${result.deletedCount} accounts deleted`);
-      } catch (error) {
-        console.error('✗ Error in deletion job:', error.message);
-        // Send alert notification if needed
-        notifyAdminOfError(error);
-      }
-    });
+    console.log('\n═══════════════════════════════════════════════════════');
+    console.log('🔧 Initializing Account Deletion and Archive Cron Jobs');
+    console.log('═══════════════════════════════════════════════════════\n');
 
-    console.log('✓ Cron job initialized: Daily account deletion at 2 AM UTC');
-    return cronJob;
+    // Initialize all new cron jobs
+    permanentDeleteAccountsCronJob();
+    cleanupExpiredArchivesCronJob();
+    notifyPendingDeletedAccountsCronJob();
+
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('✅ All cron jobs initialized successfully');
+    console.log('═══════════════════════════════════════════════════════\n');
+
+    return true;
   } catch (error) {
-    console.error('Failed to initialize cron job:', error);
+    console.error('❌ Failed to initialize cron jobs:', error);
     throw error;
   }
 };
 
 /**
- * Stop cron job (for graceful shutdown)
+ * Stop all cron jobs (for graceful shutdown)
  */
 exports.stopCronJobs = () => {
-  if (cronJob) {
-    cronJob.stop();
-    console.log('✓ Cron job stopped');
-  }
+  console.log('🛑 Stopping all cron jobs...');
+  cron.getTasks().forEach(task => {
+    task.stop();
+  });
+  console.log('✓ All cron jobs stopped');
 };
 
 /**
- * Manual trigger for deletion (for testing/admin purposes)
+ * Manual trigger for permanent deletion (for testing/admin purposes)
  */
 exports.triggerDeletionNow = async () => {
-  console.log('🔧 Manually triggering account deletion...');
+  console.log('🔧 Manually triggering account permanent deletion...');
   try {
     const result = await permanentlyDeleteExpiredAccounts();
     console.log(`✓ Manual deletion completed: ${result.deletedCount} accounts deleted`);
@@ -57,25 +60,27 @@ exports.triggerDeletionNow = async () => {
 };
 
 /**
- * Notify admin of errors
- */
-function notifyAdminOfError(error) {
-  // TODO: Implement email notification to admin
-  // sendEmail({
-  //   to: process.env.ADMIN_EMAIL,
-  //   subject: '⚠️ Account Deletion Job Error',
-  //   message: `Error: ${error.message}`
-  // });
-  console.error('Admin notification would be sent:', error.message);
-}
-
-/**
- * Get job status
+ * Get all cron job statuses
  */
 exports.getCronJobStatus = () => {
   return {
-    active: cronJob ? !cronJob._destroyed : false,
-    schedule: '0 2 * * * (Daily at 2 AM UTC)',
-    nextRun: cronJob ? 'Scheduled' : 'Not scheduled'
+    tasks: cron.getTasks().length,
+    jobs: [
+      {
+        name: 'Permanent Account Deletion',
+        schedule: '0 2 * * * (Daily at 2 AM UTC)',
+        description: 'Permanently delete accounts after 30-day grace period'
+      },
+      {
+        name: 'Archive Cleanup',
+        schedule: '0 3 * * 0 (Sundays at 3 AM UTC)',
+        description: 'Clean up expired archive records'
+      },
+      {
+        name: 'Deletion Reminders',
+        schedule: '0 10 * * * (Daily at 10 AM UTC)',
+        description: 'Send reminder emails before permanent deletion'
+      }
+    ]
   };
 };

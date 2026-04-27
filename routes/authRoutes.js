@@ -5,12 +5,22 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 
 const { completeProfile } = require('../Sign_In_Up/Sign_up');
-const signIn              = require('../Sign_In_Up/Sign_in');
+const { signIn, signInAdminStep1, signInAdminStep2, resendAdminOtp } = require('../Sign_In_Up/Sign_in');
 const controller          = require('../Sign_In_Up/Controller');
 const { logout } = require('../packProfil/Deconnexion');
 const {  logoutOtherDevices } = require('../packProfil/Deconnexion');
 const logoutController = require('../packProfil/Deconnexion');
 const upload=require('../middleware/upload');
+
+
+const rateLimit = require('express-rate-limit');
+// Rate limiter strict pour admin — dans authRoutes.js
+const adminOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      5,
+  message:  { status: 'fail', message: "Trop de tentatives admin. Réessayez dans 15 minutes." }
+});
+
 
 // Logout routes - protected
 /**
@@ -105,7 +115,15 @@ router.post('/signup', upload.uploadTeacherSignup, completeProfile);
  * #swagger.responses[403] = { description: "Forbidden — compte désactivé" }
  * #swagger.responses[500] = { description: "Internal Server Error" }
  */
+
+
+// ── Signin utilisateurs ───────────────────────────────────────
 router.post('/signin', signIn);
+
+// ── Signin admin — 2 étapes ───────────────────────────────────
+router.post('/admin/signin',      adminOtpLimiter, signInAdminStep1);
+router.post('/admin/verify-otp',  adminOtpLimiter, signInAdminStep2);
+router.post('/admin/resend-otp',  adminOtpLimiter, resendAdminOtp  );
 
 // Signup OTP (public)
 /**

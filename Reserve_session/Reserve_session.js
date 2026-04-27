@@ -1,6 +1,39 @@
 const Seance = require('../models/sessionModel');
 const Eleve = require('../models/studentModel');
 const Parent = require('../models/parentModel');
+const User = require('../models/userModel');
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER — Enrichir une séance avec l'état de suppression des participants
+// ═══════════════════════════════════════════════════════════════
+const enrichSessionWithDeletedStatus = async (session) => {
+  if (!session || !session.etudiants || session.etudiants.length === 0) {
+    return { ...session, participantsStatus: [] };
+  }
+
+  const studentsIds = session.etudiants || [];
+  const students = await Eleve.find({ _id: { $in: studentsIds } });
+  
+  const participantsStatus = [];
+  
+  for (const student of students) {
+    // Trouver l'utilisateur associé à cet élève
+    const user = await User.findOne({ idmembre: student.id_eleve }).select('+isDeleted +deletedAt');
+    
+    participantsStatus.push({
+      studentId: student._id,
+      studentName: `${student.prenom} ${student.nom}`,
+      isDeleted: user ? user.isDeleted : false,
+      deletedAt: user ? user.deletedAt : null,
+      status: user && user.isDeleted ? 'permanently_deleted' : 'active'
+    });
+  }
+
+  return {
+    ...session,
+    participantsStatus
+  };
+};
 
 /**
  * Réserver une séance.
@@ -26,109 +59,67 @@ const bookSession = async (req, res) => {
   try {
     const { session_id, type_compte, id_compte, id_eleve } = req.body;
 
-    // ─── 1. Validation des champs de base ────────────────────────────────────
-    if (!session_id || !type_compte || !id_compte) {
-      return res.status(400).json({
-        message: 'Les champs session_id, type_compte et id_compte sont obligatoires'
-      });
-    }
+    // 1. Normalisation des IDs
+    const numericIdSeance = Number(session_id);
+    const numericIdCompte = Number(id_compte);
+    const numericIdEleve = id_eleve ? Number(id_eleve) : null;
 
-    if (!['eleve', 'parent'].includes(type_compte)) {
-      return res.status(400).json({
-        message: "type_compte doit être 'eleve' ou 'parent'"
-      });
-    }
-
-    // ─── 2. Identifier l'élève à inscrire selon le type de compte ────────────
+    // 2. Trouver l'élève
     let studentToBook;
+    if (type_compte === 'parent') {
+      const parent = await Parent.findOne({ id_parent: numericIdCompte });
+      if (!parent) return res.status(404).json({ message: 'Parent introuvable' });
 
-    if (type_compte === 'eleve') {
-      // L'élève réserve pour lui-même
-      studentToBook = await Eleve.findOne({ id_eleve: id_compte });
-      if (!studentToBook) {
-        return res.status(404).json({ message: 'Compte élève introuvable' });
-      }
+      studentToBook = await Eleve.findOne({ id_eleve: numericIdEleve });
+      if (!studentToBook) return res.status(404).json({ message: 'Enfant introuvable' });
 
-    } else {
-      // Le parent réserve pour un de ses enfants
-      if (!id_eleve) {
-        return res.status(400).json({
-          message: "Un compte parent doit fournir id_eleve (l'enfant à inscrire)"
-        });
-      }
-
-      const parent = await Parent.findOne({ id_parent: id_compte });
-      if (!parent) {
-        return res.status(404).json({ message: 'Compte parent introuvable' });
-      }
-
-      studentToBook = await Eleve.findOne({ id_eleve });
-      if (!studentToBook) {
-        return res.status(404).json({ message: 'Élève (enfant) introuvable' });
-      }
-
-      // Vérifier que l'enfant appartient bien à ce parent
       const isChild = parent.enfants.some(
-        (enfantId) => enfantId.toString() === studentToBook._id.toString()
+        (item) => item.student && item.student.toString() === studentToBook._id.toString()
       );
-
-      if (!isChild) {
-        return res.status(403).json({
-          message: "Cet élève n'est pas rattaché à votre compte parent"
-        });
-      }
+      if (!isChild) return res.status(403).json({ message: "L'élève n'est pas lié à ce parent" });
+    } else {
+      studentToBook = await Eleve.findOne({ id_eleve: numericIdCompte });
     }
 
-    // ─── 3. Réservation atomique ─────────────────────────────────────────────
+    if (!studentToBook) return res.status(404).json({ message: 'Élève introuvable' });
+
+    // 3. Mise à jour de la séance
+    // On utilise directement le modèle pour pousser l'ID dans le tableau
     const session = await Seance.findOneAndUpdate(
       {
-        session_id,
-        statut: { $in: ['en_attente', 'confirmee'] },
-        $expr: { $lt: [{ $size: '$etudiants' }, '$nombre_max_participants'] },
-        etudiants: { $ne: studentToBook._id }
+        id_seance: numericIdSeance,
+        statut: { $in: ['libre', 'confirmee', 'reportee'] },
+        etudiants: { $ne: studentToBook._id } // Vérifie qu'il n'est pas déjà dedans
       },
-      {
-        $push: { etudiants: studentToBook._id }
+      { 
+        $push: { etudiants: studentToBook._id },
+        $set: { statut: 'confirmee' } // On confirme la séance dès qu'il y a un inscrit
       },
-      {
-        returnDocument: "after",
-        runValidators: true
-      }
-    ).populate('service enseignant', 'nom prenom titre');
+      { new: true }
+    ).populate('service enseignant');
 
-    // ─── 4. Gestion de l'échec ───────────────────────────────────────────────
     if (!session) {
-      const checkSession = await Seance.findOne({ session_id });
-      if (!checkSession) {
-        return res.status(404).json({ message: 'Séance introuvable' });
-      }
-
-      return res.status(400).json({
-        message: 'Réservation impossible : séance complète, déjà réservée ou statut invalide'
+      // Vérifions si c'est parce qu'elle est complète ou inexistante
+      const check = await Seance.findOne({ id_seance: numericIdSeance });
+      if (!check) return res.status(404).json({ message: "Séance introuvable" });
+      
+      return res.status(400).json({ 
+        message: "Inscription impossible (déjà inscrit ou séance complète)" 
       });
     }
 
-    // ─── 5. Passage en statut "confirmee" si première inscription ────────────
-    if (session.statut === 'en_attente') {
-      session.statut = 'confirmee';
-      await session.save();
-    }
-
-    // ─── 6. Réponse succès ───────────────────────────────────────────────────
     return res.status(201).json({
-      message: type_compte === 'parent'
-        ? `Inscription réussie pour l'élève ${id_eleve} (réservée par le parent ${id_compte})`
-        : 'Inscription réussie',
-      reservePar: type_compte,
-      session
+      status: 'success',
+      message: 'Inscription réussie',
+      session: await enrichSessionWithDeletedStatus(session)
     });
 
   } catch (error) {
+    console.error("Erreur:", error);
     return res.status(500).json({ error: error.message });
   }
 };
-
-
+module.exports = { bookSession, getPastSessions, getUpcomingSessions, enrichSessionWithDeletedStatus };
 // ─────────────────────────────────────────────────────────────────────────────
 // SÉANCES PASSÉES
 // GET /api/session/past/:id_eleve
@@ -151,10 +142,17 @@ const getPastSessions = async (req, res) => {
       .populate('enseignant', 'firstname familyname')
       .sort({ date_seance: -1 });
  
+    // ─────────────────────────────────────────────────
+    // Enrichir avec l'état de suppression des participants
+    // ─────────────────────────────────────────────────
+    const enrichedSessions = await Promise.all(
+      sessions.map(s => enrichSessionWithDeletedStatus(s))
+    );
+
     return res.status(200).json({
       success: true,
-      count: sessions.length,
-      sessions
+      count: enrichedSessions.length,
+      sessions: enrichedSessions
     });
  
   } catch (error) {
@@ -185,10 +183,17 @@ const getUpcomingSessions = async (req, res) => {
       .populate('enseignant', 'firstname familyname')
       .sort({ date_seance: 1 });
  
+    // ─────────────────────────────────────────────────
+    // Enrichir avec l'état de suppression des participants
+    // ─────────────────────────────────────────────────
+    const enrichedSessions = await Promise.all(
+      sessions.map(s => enrichSessionWithDeletedStatus(s))
+    );
+
     return res.status(200).json({
       success: true,
-      count: sessions.length,
-      sessions
+      count: enrichedSessions.length,
+      sessions: enrichedSessions
     });
  
   } catch (error) {
