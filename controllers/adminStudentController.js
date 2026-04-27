@@ -98,7 +98,7 @@ const buildPipeline = ({ studentQuery, userQuery, sortBy, sortOrder, page, limit
   pipeline.push({ $limit: limit });
   pipeline.push({
     $project: {
-      _id: 0, id_eleve: 1, niveau_scolaire: 1, annee_scolaire: 1,
+      _id: 0, id_eleve: 1, niveau_scolaire: 1, yearOfStudy: 1,
       actif: 1, wilaya: 1, commune: 1, objectifs_pedagogiques: 1,
       firstname:   '$user.firstname',
       familyname:  '$user.familyname',
