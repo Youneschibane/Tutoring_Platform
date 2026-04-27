@@ -20,19 +20,30 @@ const protect = async (req, res, next) => {
 
     // 3. Check user exists
     const user = await User.findById(decoded.id)
-      .select('+passwordChangedAt +isActive');
+      .select('+passwordChangedAt +isActive +isDeleted');
     if (!user) {
       return res.status(401).json({ status: 'fail', message: "Utilisateur introuvable." });
     }
 
-    // 4. Invalidate tokens issued before password change (disconnects all other devices)
+    // 4. Check if account is permanently deleted
+    if (user.isDeleted) {
+      return res.status(403).json({ 
+        status: 'fail', 
+        message: "Ce compte a été supprimé définitivement et ne peut pas être récupéré." 
+      });
+    }
+
+    // 5. Invalidate tokens issued before password change (disconnects all other devices)
     if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
       return res.status(401).json({ status: 'fail', message: "Session expirée suite à un changement de mot de passe. Reconnectez-vous." });
     }
 
- 
+    // 6. Block deactivated accounts (pending deletion — within 30-day grace period)
+    if (!user.isActive) {
+      return res.status(403).json({ status: 'fail', message: "Compte désactivé et en attente de suppression. Contactez le support pour réactiver." });
+    }
 
-    // 6. Verify token is still active for this specific device
+    // 7. Verify token is still active for this specific device
     const activeDevice = await Device.findOne({
       userId: user._id,
       jwtToken: token,  // exact match — only the current active token is valid
@@ -43,7 +54,7 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ status: 'fail', message: "Session invalide ou expirée. Reconnectez-vous." });
     }
 
-    // 7. Check teacher approval (only for teachers) — with bypass for status check
+    // 8. Check teacher approval (only for teachers) — with bypass for status check
     if (user.role === 'teacher' && !req.skipAcceptedCheck) {
       const teacher = await Teacher.findOne({ id_enseignant: user.idmembre }).select('accepted');
       if (!teacher || !teacher.accepted) {
@@ -126,17 +137,23 @@ const protectReactivate = async (req, res, next) => {
 
     // 3. Check user exists
     const user = await User.findById(decoded.id)
-      .select('+passwordChangedAt +isActive');
+      .select('+passwordChangedAt +isActive +isDeleted +deletionScheduledAt');
     if (!user) {
       return res.status(401).json({ status: 'fail', message: "Utilisateur introuvable." });
     }
 
-    // 4. Invalidate tokens issued before password change (disconnects all other devices)
+    // 4. Check if account is permanently deleted — cannot reactivate
+    if (user.isDeleted) {
+      return res.status(403).json({ 
+        status: 'fail', 
+        message: "Ce compte a été supprimé définitivement et ne peut pas être récupéré." 
+      });
+    }
+
+    // 5. Invalidate tokens issued before password change (disconnects all other devices)
     if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
       return res.status(401).json({ status: 'fail', message: "Session expirée suite à un changement de mot de passe. Reconnectez-vous." });
     }
-
-
 
     // 6. Verify token is still active for this specific device
     const activeDevice = await Device.findOne({
@@ -148,8 +165,6 @@ const protectReactivate = async (req, res, next) => {
     if (!activeDevice) {
       return res.status(401).json({ status: 'fail', message: "Session invalide ou expirée. Reconnectez-vous." });
     }
-
-  
 
     req.user   = user;
     req.device = activeDevice; // available in all controllers

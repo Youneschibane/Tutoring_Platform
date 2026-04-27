@@ -1,107 +1,189 @@
+// =====================
+// CORE IMPORTS
+// =====================
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
+const xss = require('xss'); 
 require('dotenv').config();
+
+// =====================
+// SECURITY IMPORTS
+// =====================
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const hpp = require('hpp');
 
 // =====================
 // ROUTES IMPORTS
 // =====================
-const authRoutes            = require('./routes/authRoutes');            // signin, signup, logout
-const teacherSearchRoutes   = require('./routes/searchRoutes');          // recherche enseignants
-const reservationRoutes     = require('./routes/reserveSession');        // réservation de sessions
-const devisRouter           = require('./routes/devisRoutes');           // demandes de devis
-const specialtyRouter       = require('./routes/specialityRouter');      // spécialités / matières
-const locationRoutes        = require('./routes/locationRoutes');        // géolocalisation
-const serviceRoutes         = require('./routes/serviceRoutes');         // services proposés
-const documentRoutes        = require('./routes/documentRoutes');        // upload / gestion documents
-const packProfilRoutes      = require('./routes/packProfilRoutes');      // profil, mot de passe, suppression compte
-const adminDeletionRoutes   = require('./routes/adminDeletionRoutes');   // suppression & archivage admin
-const adminTeacherRoutes    = require('./routes/adminTeacherRoutes');    // validation enseignants admin
-const teacherStatusRoutes   = require('./routes/teacherStatusRoutes');   // statut validation enseignant
-
-const adminServiceRoutes  = require('./routes/adminServiceRoutes');
-
+const authRoutes = require('./routes/authRoutes');
+const teacherSearchRoutes = require('./routes/searchRoutes');
+const reservationRoutes = require('./routes/reserveSession');
+const devisRouter = require('./routes/devisRoutes');
+const specialtyRouter = require('./routes/specialityRouter');
+const locationRoutes = require('./routes/locationRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
+const documentRoutes = require('./routes/documentRoutes');
+const packProfilRoutes = require('./routes/packProfilRoutes');
+const adminDeletionRoutes = require('./routes/adminDeletionRoutes');
+const adminTeacherRoutes = require('./routes/adminTeacherRoutes');
+const teacherStatusRoutes = require('./routes/teacherStatusRoutes');
+const adminServiceRoutes = require('./routes/adminServiceRoutes');
 const enfantRoutes = require('./routes/enfantRoutes');
+const teacherDocumentRoutes = require('./routes/teacherDocumentRoutes');
+
 // =====================
-// SWAGGER DOCS
+// SWAGGER
 // =====================
-const swaggerUi       = require('swagger-ui-express');
+const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger-output.json');
 
 const app = express();
 
 // =====================
-// GLOBAL MIDDLEWARES
+// TRUST PROXY
 // =====================
-app.use(express.json());        // parse les requêtes JSON
-app.use(cookieParser());        // parse les cookies
-app.use(morgan('dev'));         // logs des requêtes HTTP en console
+app.set('trust proxy', 1);
+
+// =====================
+// SECURITY HEADERS & CORS
+// =====================
+app.use(helmet());
+app.disable('x-powered-by');
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// =====================
+// BODY PARSING
+// =====================
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
+
+// =====================
+// SAFE SANITIZATION MIDDLEWARE (FIX)
+// =====================
+app.use((req, res, next) => {
+  const clean = (val) => {
+    if (typeof val === 'string') {
+      // 1. Basic Mongo Sanitize (remove $ and .)
+      let s = val.replace(/[$.]/g, '');
+      // 2. XSS Sanitize
+      return xss(s);
+    }
+    if (Array.isArray(val)) return val.map(clean);
+    if (val !== null && typeof val === 'object') {
+      const newObj = {};
+      for (const key in val) {
+        newObj[key] = clean(val[key]);
+      }
+      return newObj;
+    }
+    return val;
+  };
+
+  // Sanitize Body (Writables)
+  if (req.body) req.body = clean(req.body);
+
+  // Sanitize Query & Params (Property-only update to avoid Getter error)
+  if (req.query) {
+    const cleanedQuery = clean(req.query);
+    // Delete existing keys and re-assign inside the object 
+    // This avoids "req.query = ..." which causes the crash
+    Object.keys(req.query).forEach(key => delete req.query[key]);
+    Object.assign(req.query, cleanedQuery);
+  }
+  
+  if (req.params) {
+    const cleanedParams = clean(req.params);
+    Object.assign(req.params, cleanedParams);
+  }
+
+  next();
+});
+
+app.use(hpp());
+
+// =====================
+// LOGGING
+// =====================
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// =====================
+// RATE LIMITING
+// =====================
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 'fail', message: 'Trop de requêtes.' }
+});
+
+app.use('/api', globalLimiter);
 
 // =====================
 // ROUTES
 // =====================
-
-
-// app.js
-app.use('/api/admin/services', adminServiceRoutes);
-
-// app.js
-
-app.use('/api/enfants', enfantRoutes);
-
-// Auth — inscription, connexion
 app.use('/api/auth', authRoutes);
-
-// Recherche — liste et filtre des enseignants
 app.use('/api/search', teacherSearchRoutes);
-
-// Sessions — réservation de cours par les élèves
 app.use('/api/session', reservationRoutes);
-
-// Devis — demande de devis élève → enseignant
 app.use('/api/devis', devisRouter);
-
-// Spécialités — matières et niveaux scolaires
 app.use('/api/specialties', specialtyRouter);
-
-// Localisation — recherche géographique
 app.use('/api/location', locationRoutes);
-
-// Services 
 app.use('/api/service', serviceRoutes);
-
-// Documents — upload et gestion des fichiers
 app.use('/api/documents', documentRoutes);
-
-// Pack profil — mise à jour profil, changement mot de passe, suppression compte, deconnection
 app.use('/api/pack-profil', packProfilRoutes);
-
-// Admin — suppression et archivage des comptes
+app.use('/api/enfants', enfantRoutes);
+app.use('/api/teacher/diplomes', teacherDocumentRoutes);
+app.use('/api/teacher', teacherStatusRoutes);
+app.use('/api/admin/teachers', adminTeacherRoutes);
+app.use('/api/admin/services', adminServiceRoutes);
 app.use('/api/admin/deletion', adminDeletionRoutes);
 
-// Admin — validation des enseignants
-app.use('/api/admin/teachers', adminTeacherRoutes);
-
-// Teacher — consultation statut de validation
-app.use('/api/teacher', teacherStatusRoutes);
-
-// Documentation API — accessible sur http://localhost:3000/api-docs
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
-
-
-
-
-
-
-
-
+// =====================
+// SWAGGER
+// =====================
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
 
 // =====================
-// 404 HANDLER
+// 404 & ERROR HANDLING
 // =====================
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ status: 'fail', message: 'Route introuvable' });
+});
+
+app.use((err, req, res, next) => {
+  console.error(`[ERROR] ${err.message}`);
+
+  // Mongoose Validation Error
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      status: 'fail',
+      message: Object.values(err.errors).map(e => e.message).join(', ')
+    });
+  }
+
+  // Duplicate Key Error
+  if (err.code === 11000) {
+    return res.status(400).json({
+      status: 'fail',
+      message: `${Object.keys(err.keyValue)[0]} déjà utilisé`
+    });
+  }
+
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: process.env.NODE_ENV === 'production' ? 'Erreur serveur' : err.message
+  });
 });
 
 module.exports = app;

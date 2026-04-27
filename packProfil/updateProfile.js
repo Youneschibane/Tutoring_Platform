@@ -1,221 +1,244 @@
 const mongoose = require('mongoose');
-const User = require('../models/userModel');
+const User    = require('../models/userModel');
 const Teacher = require('../models/teacherModel');
 const Student = require('../models/studentModel');
-const Parent = require('../models/parentModel');
-const Admin = require('../models/adminModel');
+const Parent  = require('../models/parentModel');
+const Admin   = require('../models/adminModel');
 const cloudinary = require('cloudinary').v2;
 
-/* ---------------------------------------------------- */
-/* HELPER: EXTRACT CLOUDINARY PUBLIC_ID FROM URL        */
-/* ---------------------------------------------------- */
-const getCloudinaryPublicId = (photoString) => {
-    if (!photoString) return null;
-    
-    // Si ce n'est pas une URL, c'est probablement déjà un public_id
-    if (!photoString.startsWith('http')) return photoString;
+// ═══════════════════════════════════════════════════════════════
+// HELPER — Extraire le publicId Cloudinary depuis une URL
+// ═══════════════════════════════════════════════════════════════
+const getCloudinaryPublicId = (photoUrl) => {
+  if (!photoUrl) return null;
+  if (!photoUrl.startsWith('http')) return photoUrl;
 
-    try {
-        // Exemple d'URL : https://res.cloudinary.com/demo/image/upload/v1234567890/folder/file.jpg
-        // Séparer par '/upload/' pour isoler le chemin
-        const afterUpload = photoString.split('/upload/')[1];
-        if (!afterUpload) return photoString;
+  try {
+    const afterUpload = photoUrl.split('/upload/')[1];
+    if (!afterUpload) return photoUrl;
 
-        // Supprimer la balise de version (ex: 'v1234567890/') si elle existe
-        const pathWithoutVersion = afterUpload.replace(/^v\d+\//, '');
+    const withoutVersion = afterUpload.replace(/^v\d+\//, '');
+    const publicId       = withoutVersion.substring(0, withoutVersion.lastIndexOf('.'));
 
-        // Supprimer l'extension de fichier (ex: '.jpg', '.png')
-        const publicId = pathWithoutVersion.substring(0, pathWithoutVersion.lastIndexOf('.'));
-        
-        return publicId || photoString;
-    } catch (err) {
-        return photoString; // Fallback sécurisé
-    }
+    return publicId || photoUrl;
+  } catch {
+    return photoUrl;
+  }
 };
 
-/* ---------------------------------------------------- */
-/* GENERIC UPDATE CONTROLLER                            */
-/* ---------------------------------------------------- */
+// ═══════════════════════════════════════════════════════════════
+// ROLE CONFIGS
+// ═══════════════════════════════════════════════════════════════
+const ROLE_CONFIGS = {
+  teacher: {
+    model:         Teacher,
+    idField:       'id_enseignant',
+    roleName:      'enseignant',
+    allowedFields: [
+      'nature', 'latitude', 'longitude', 'deplacement',
+      'rayon_deplacement', 'description_pedagogique',
+      'certifications', 'actif', 'subjects'
+    ]
+  },
+  student: {
+    model:         Student,
+    idField:       'id_eleve',
+    roleName:      'étudiant',
+    allowedFields: [
+      'yearOfStudy', 'niveau_scolaire',
+      'objectifs_pedagogiques', 'id_parent'
+    ]
+  },
+  parent: {
+    model:         Parent,
+    idField:       'id_parent',
+    roleName:      'parent',
+    allowedFields: ['enfants']
+  },
+  admin: {
+    model:         Admin,
+    idField:       'id_admin',
+    roleName:      'admin',
+    allowedFields: []
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GENERIC UPDATE CONTROLLER
+// ═══════════════════════════════════════════════════════════════
 const performUpdate = async (req, res, roleConfig) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    let oldPhotoToDelete = null; // Track old photo for safe deletion later
+  let oldPhotoPublicId = null;
+  let newFilePublicId  = null;
 
-    try {
-        const userId = req.user.id;
-        const {
-            firstname, familyname, postaladr, email, numberphone, ...extraFields
-        } = req.body || {};
+  try {
+    const userId = req.user.id;
 
-        // 1. Fetch user once
-        const user = await User.findById(userId).session(session);
-        if (!user) {
-            await session.abortTransaction();
-            return res.status(404).json({ status: "fail", message: "Utilisateur introuvable" });
-        }
+    const {
+      firstname, familyname, postaladr,
+      email, numberphone,
+      ...extraFields
+    } = req.body || {};
 
-        /* ---------- USER UPDATE ---------- */
-        let userUpdates = {};
-
-        if (firstname !== undefined && firstname !== '') userUpdates.firstname = firstname;
-        if (familyname !== undefined && familyname !== '') userUpdates.familyname = familyname;
-        if (postaladr !== undefined && postaladr !== '') userUpdates.postaladr = postaladr;
-        if (email !== undefined && email !== '') userUpdates.email = email;
-        if (numberphone !== undefined && numberphone !== '') userUpdates.numberphone = numberphone;
-
-      // AJOUTE CE CONSOLE.LOG POUR DÉBUGGER
-        console.log("Fichier intercepté par multer :", req.file);
-
-        // 2. Handle Image Safely (Queue old image for deletion)
-        if (req.file) {
-            // On vérifie path, puis secure_url au cas où
-            const photoUrl = req.file.path || req.file.secure_url; 
-            
-            if (photoUrl) {
-                userUpdates.photo_profil = photoUrl; 
-                
-                // Si l'utilisateur avait une ancienne photo, on la marque pour suppression APRÈS le commit
-                if (user.photo_profil) {
-                    oldPhotoToDelete = user.photo_profil; 
-                }
-            } else {
-                console.log("⚠️ Le fichier a été reçu mais aucune URL n'a été trouvée.");
-            }
-        }
-        // 3. Update User
-        let updatedUser = user;
-        if (Object.keys(userUpdates).length > 0) {
-            updatedUser = await User.findByIdAndUpdate(
-                userId,
-                { $set: userUpdates },
-                { returnDocument: "after", runValidators: true, session }
-            ).select("-password");
-        }
-
-        /* ---------- ROLE UPDATE ---------- */
-        const { model, idField, allowedFields, roleName } = roleConfig;
-        const roleUpdates = {};
-
-        allowedFields.forEach(field => {
-            if (extraFields[field] !== undefined) {
-                roleUpdates[field] = extraFields[field];
-            }
-        });
-
-        let updatedSpecific = null;
-        const memberId = updatedUser.idmembre || updatedUser._id;
-
-        if (Object.keys(roleUpdates).length > 0) {
-            updatedSpecific = await model.findOneAndUpdate(
-                { [idField]: memberId },
-                { $set: roleUpdates },
-                { returnDocument: "after", runValidators: true, session }
-            );
-        } else {
-            // Fetch pour pouvoir le retourner même s'il n'y a pas de mise à jour spécifique au rôle
-            updatedSpecific = await model.findOne({ [idField]: memberId }).session(session);
-        }
-
-        // 4. Commit DB Transaction FIRST
-        await session.commitTransaction();
-
-        // 5. Cleanup: Now that DB is safe, destroy the old Cloudinary image
-        if (oldPhotoToDelete) {
-            try {
-                // Extraction du véritable public_id grâce à la fonction utilitaire
-                const publicId = getCloudinaryPublicId(oldPhotoToDelete);
-                await cloudinary.uploader.destroy(publicId);
-                console.log(`Ancienne image supprimée avec succès : ${publicId}`);
-            } catch (err) {
-                console.error("Échec de la suppression de l'ancienne image (Fichier orphelin):", err);
-                // On ne lève pas d'erreur ici car la DB a bien été mise à jour
-            }
-        }
-
-        // 6. Return response using the updated data
-        return res.status(200).json({
-            status: "success",
-            message: `Profil ${roleName} mis à jour avec succès.`,
-            data: {
-                user: updatedUser,
-                details: updatedSpecific
-            }
-        });
-
-    } catch (error) {
-        // DB Rollback
-        await session.abortTransaction();
-
-        // 7. Cleanup NEW image if transaction failed
-        // Permet d'éviter de stocker des fichiers inutiles si l'enregistrement DB a échoué
-        const newFilePublicId = req.file?.filename || req.file?.public_id;
-        if (newFilePublicId) {
-            try {
-                await cloudinary.uploader.destroy(newFilePublicId);
-            } catch (e) {
-                console.error("Erreur lors de la suppression de la nouvelle image annulée :", e);
-            }
-        }
-
-        console.error("UPDATE ERROR:", error);
-        return res.status(500).json({
-            status: "error",
-            message: error?.message || "Erreur serveur"
-        });
-
-    } finally {
-        session.endSession();
+    // ─────────────────────────────────────────
+    // 1. FETCH USER
+    // ─────────────────────────────────────────
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ status: 'fail', message: "Utilisateur introuvable." });
     }
-};
 
-/* ---------------------------------------------------- */
-/* ROLE ROUTES                                          */
-/* ---------------------------------------------------- */
+    // ─────────────────────────────────────────
+    // 2. BUILD USER UPDATES
+    // ─────────────────────────────────────────
+    const userUpdates = {};
 
-exports.updateProfileTeacher = async (req, res) => {
-    return await performUpdate(req, res, {
-        model: Teacher,
-        idField: "id_enseignant",
-        roleName: "enseignant",
-        allowedFields: [
-            "nature",
-            "latitude",
-            "longitude",
-            "deplacement",
-            "rayon_deplacement",
-            "description_pedagogique",
-            "certifications",
-            "actif",
-            "subjects"
-        ]
+    if (firstname  !== undefined && firstname  !== '') userUpdates.firstname   = firstname;
+    if (familyname !== undefined && familyname !== '') userUpdates.familyname  = familyname;
+    if (postaladr  !== undefined && postaladr  !== '') userUpdates.postaladr   = postaladr;
+    if (email      !== undefined && email      !== '') userUpdates.email       = email;
+    if (numberphone !== undefined && numberphone !== '') userUpdates.numberphone = numberphone;
+
+    // ─────────────────────────────────────────
+    // 3. HANDLE PHOTO UPLOAD
+    // ─────────────────────────────────────────
+    if (req.file) {
+      const photoUrl = req.file.path || req.file.secure_url;
+      newFilePublicId = req.file.filename || req.file.public_id;
+
+      if (photoUrl) {
+        userUpdates.photo_profil = photoUrl;
+
+        // Tracker l'ancienne photo pour suppression après commit
+        if (user.photo_profil) {
+          oldPhotoPublicId = getCloudinaryPublicId(user.photo_profil);
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // 4. UPDATE USER
+    // ─────────────────────────────────────────
+    let updatedUser = user;
+
+    if (Object.keys(userUpdates).length > 0) {
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $set: userUpdates },
+        { returnDocument: 'after', runValidators: true, session }
+      ).select('-password');
+    }
+
+    // ─────────────────────────────────────────
+    // 5. BUILD ROLE-SPECIFIC UPDATES
+    // ─────────────────────────────────────────
+    const { model, idField, allowedFields, roleName } = roleConfig;
+    const roleUpdates = {};
+
+    allowedFields.forEach(field => {
+      if (extraFields[field] !== undefined) {
+        // Special handling for 'subjects' if it's a string (JSON array)
+        if (field === 'subjects' && typeof extraFields[field] === 'string') {
+          try {
+            roleUpdates[field] = JSON.parse(extraFields[field]);
+          } catch (e) {
+            return res.status(400).json({
+              status: 'fail',
+              message: "Format du champ 'subjects' invalide. Doit être un tableau JSON."
+            });
+          }
+        } else {
+          roleUpdates[field] = extraFields[field];
+        }
+      }
     });
+
+    // ─────────────────────────────────────────
+    // 6. UPDATE ROLE MODEL
+    // ─────────────────────────────────────────
+    const memberId = updatedUser.idmembre;
+    let updatedSpecific = null;
+
+    if (Object.keys(roleUpdates).length > 0) {
+      updatedSpecific = await model.findOneAndUpdate(
+        { [idField]: memberId },
+        { $set: roleUpdates },
+        { returnDocument: 'after', runValidators: true, session }
+      );
+    } else {
+      updatedSpecific = await model.findOne({ [idField]: memberId }).session(session);
+    }
+
+    // ─────────────────────────────────────────
+    // 7. COMMIT TRANSACTION
+    // ─────────────────────────────────────────
+    await session.commitTransaction();
+
+    // ─────────────────────────────────────────
+    // 8. SUPPRIMER L'ANCIENNE PHOTO CLOUDINARY
+    // Après commit — fire and forget
+    // ─────────────────────────────────────────
+    if (oldPhotoPublicId) {
+      try {
+        await cloudinary.uploader.destroy(oldPhotoPublicId);
+      } catch (e) {
+        console.error("Ancienne photo non supprimée (orphelin Cloudinary):", e.message);
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // 9. RESPONSE
+    // ─────────────────────────────────────────
+    return res.status(200).json({
+      status:  'success',
+      message: `Profil ${roleName} mis à jour avec succès.`,
+      data: {
+        user:    updatedUser,
+        details: updatedSpecific
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+
+    // Rollback nouvelle photo si transaction échouée
+    if (newFilePublicId) {
+      try {
+        await cloudinary.uploader.destroy(newFilePublicId);
+      } catch (e) {
+        console.error("Rollback nouvelle photo échoué:", e.message);
+      }
+    }
+
+    console.error("UPDATE ERROR:", error.message);
+    return res.status(500).json({
+      status:  'error',
+      message: error?.message || "Erreur serveur."
+    });
+
+  } finally {
+    session.endSession();
+  }
 };
 
-exports.updateProfileStudent = async (req, res) => {
-    return await performUpdate(req, res, {
-        model: Student,
-        idField: "id_eleve",
-        roleName: "étudiant",
-        allowedFields: [
-            "yearOfStudy",
-            "niveau_scolaire",
-            "objectifs_pedagogiques",
-            "id_parent"
-        ]
-    });
-};
+// ═══════════════════════════════════════════════════════════════
+// EXPORTED CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
 
-exports.updateProfileParent = async (req, res) => {
-    return await performUpdate(req, res, {
-        model: Parent,
-        idField: "id_parent",
-        roleName: "parent",
-        allowedFields: [
-            "enfants"
-        ]
-    });
-};
+exports.updateProfileTeacher = (req, res) =>
+  performUpdate(req, res, ROLE_CONFIGS.teacher);
+
+exports.updateProfileStudent = (req, res) =>
+  performUpdate(req, res, ROLE_CONFIGS.student);
+
+exports.updateProfileParent = (req, res) =>
+  performUpdate(req, res, ROLE_CONFIGS.parent);
+
+exports.updateProfileAdmin = (req, res) =>
+  performUpdate(req, res, ROLE_CONFIGS.admin);
 
 /* backward compatibility */
 exports.updateProfile = exports.updateProfileTeacher;

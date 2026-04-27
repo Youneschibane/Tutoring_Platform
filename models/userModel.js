@@ -89,9 +89,29 @@ loggedOutAt: {
   type: Date,
   default: null,
   select: false
-}
- 
+},
 
+// ─────────────────────────────────────────────────
+// SOFT DELETE FIELDS (Compte supprimé)
+// ─────────────────────────────────────────────────
+isDeleted: {
+  type: Boolean,
+  default: false,
+  select: false,
+  index: true
+},
+
+deletedAt: {
+  type: Date,
+  default: null,
+  select: false
+},
+
+deletionReason: {
+  type: String,
+  default: null,
+  select: false
+}
 
 },
     { timestamps: true },

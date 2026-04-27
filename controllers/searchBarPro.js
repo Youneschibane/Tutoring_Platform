@@ -248,12 +248,7 @@ const searchBarPro = async (req, res) => {
     const finalSort  = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : 'score';
     const finalOrder = sortOrder === 1 || sortOrder === '1' ? 1 : -1;
 
-    if (query.length < 2) {
-      return res.status(400).json({
-        status:  'fail',
-        message: "La recherche doit contenir au moins 2 caractères."
-      });
-    }
+    
 
     const teacherIds = await resolveTeacherIds(query);
 
