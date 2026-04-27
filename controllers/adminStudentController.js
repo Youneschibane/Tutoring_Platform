@@ -8,14 +8,14 @@ const MAX_LIMIT     = 100;
 const ALLOWED_SORT_FIELDS = ['createdAt', 'firstname', 'familyname', 'niveau_scolaire'];
 
 const STUDENT_FIELDS = new Set([
-  'niveau_scolaire', 'annee_scolaire', 'actif', 'wilaya', 'commune'
+  'niveau_scolaire', 'yearOfStudy', 'actif', 'wilaya', 'commune'
 ]);
 
 const USER_FIELDS = new Set([
   'firstname', 'familyname', 'email', 'numberphone', 'postaladr'
 ]);
 
-const EXACT_MATCH_FIELDS = new Set(['annee_scolaire', 'niveau_scolaire']);
+const EXACT_MATCH_FIELDS = new Set(['yearOfStudy', 'niveau_scolaire']);
 
 const ANNEE_SCOLAIRE_OPTIONS = {
   primaire: ['1AP', '2AP', '3AP', '4AP', '5AP'],
@@ -35,7 +35,7 @@ const validateAnneeScolaire = (value) => {
   const invalid = values.filter(v => !VALID_ANNEE_SCOLAIRE.has(v));
   if (invalid.length) {
     return `Invalid annee_scolaire value(s): ${invalid.join(', ')}. ` +
-           `Allowed values: ${[...VALID_ANNEE_SCOLAIRE].join(', ')}`;
+          `Allowed values: ${[...VALID_ANNEE_SCOLAIRE].join(', ')}`;
   }
   return null;
 };
@@ -81,7 +81,6 @@ const validateParams = (body) => {
     filters
   };
 };
-
 
 const buildPipeline = ({ studentQuery, userQuery, sortBy, sortOrder, page, limit }) => {
   const pipeline = [];
@@ -158,7 +157,7 @@ const searchStudents = async (req, res) => {
   try {
     const { page, limit, sortBy, sortOrder, filters } = validateParams(req.body);
 
-    if (filters.annee_scolaire) {
+    if (filters.yearOfStudy) {
       const error = validateAnneeScolaire(filters.annee_scolaire);
       if (error) return res.status(400).json({ status: 'error', message: error });
     }
