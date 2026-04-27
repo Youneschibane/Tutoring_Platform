@@ -3,10 +3,14 @@ const router  = express.Router();
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const { allTeachers, searchTeachers , getTeacherDetails } = require('../controllers/adminTeacherController');
 const { getAllServices, searchServices , getAllSubjects } = require('../controllers/adminServiceController');
-const { getAllStudents, searchStudents  } = require('../controllers/adminStudentController');
-
-
 const { addSubject, removeSubject, getAllLevels , getOptions,getSubjects,getCycles } = require('../controllers/adminEducationController');
+
+const { getAllStudents, searchStudents, getAnneeOptions } = require('../controllers/adminStudentController');
+
+router.get('/students/annees',  getAnneeOptions);   
+router.get('/students',         getAllStudents);
+router.post('/students/search', searchStudents);
+
 
 router.get('/teachers',        allTeachers);
 router.post('/teachers/search' ,searchTeachers);
@@ -15,12 +19,6 @@ router.get('/teachers/:id', getTeacherDetails);
 router.get('/services',        getAllServices);
 router.post('/services/search' ,searchServices);
 router.get('/services/all-subjects', getAllSubjects);
-
-
-router.get('/students',        getAllStudents);
-router.post('/students/search' ,searchStudents);
-
-
 
 router.get('/education',                      getAllLevels);
 router.patch('/education/add-subject',    addSubject);
