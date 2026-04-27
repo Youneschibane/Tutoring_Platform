@@ -5,11 +5,11 @@ const { allTeachers, searchTeachers , getTeacherDetails } = require('../controll
 const { getAllServices, searchServices , getAllSubjects } = require('../controllers/adminServiceController');
 const { addSubject, removeSubject, getAllLevels , getOptions,getSubjects,getCycles } = require('../controllers/adminEducationController');
 
-const { getAllStudents, searchStudents, getAnneeOptions } = require('../controllers/adminStudentController');
+const { getAllStudents, searchStudents, getAnneesByCycle } = require('../controllers/adminStudentController');
 
-router.get('/students/annees',  getAnneeOptions);   
-router.get('/students',         getAllStudents);
-router.post('/students/search', searchStudents);
+router.get('/students/annees/:cycle',  getAnneesByCycle); 
+router.get('/students',                getAllStudents);
+router.post('/students/search',        searchStudents);
 
 
 router.get('/teachers',        allTeachers);
