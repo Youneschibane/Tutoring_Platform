@@ -29,7 +29,6 @@ const VALID_ANNEE_SCOLAIRE = new Set(
   Object.values(ANNEE_SCOLAIRE_OPTIONS).flat()
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const validateAnneeScolaire = (value) => {
   const values = Array.isArray(value) ? value : [value];
@@ -83,7 +82,6 @@ const validateParams = (body) => {
   };
 };
 
-// ─── Pipeline ─────────────────────────────────────────────────────────────────
 
 const buildPipeline = ({ studentQuery, userQuery, sortBy, sortOrder, page, limit }) => {
   const pipeline = [];
@@ -114,25 +112,6 @@ const buildPipeline = ({ studentQuery, userQuery, sortBy, sortOrder, page, limit
   return pipeline;
 };
 
-// ─── Controllers ──────────────────────────────────────────────────────────────
-
-/**
- * GET /students/annees/cycles
- * Step 1 — admin picks a cycle from this list
- * Response: { status, data: ["primaire","college","lycee","esi"] }
- */
-const getCycles = (req, res) => {
-  return res.status(200).json({
-    status: 'success',
-    data:   Object.keys(ANNEE_SCOLAIRE_OPTIONS)
-  });
-};
-
-/**
- * GET /students/annees/:cycle
- * Step 2 — admin picks a year from this list
- * Response: { status, cycle, data: ["1AP","2AP",...] }
- */
 const getAnneesByCycle = (req, res) => {
   const key = req.params.cycle.toLowerCase();
 
