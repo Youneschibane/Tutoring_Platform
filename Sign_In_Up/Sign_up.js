@@ -4,6 +4,7 @@ const Student = require('../models/studentModel');
 const Parent  = require('../models/parentModel');
 const Admin   = require('../models/adminModel');
 const Device  = require('../models/deviceModel');
+const { notifyAdmin } = require('../controllers/notificationService');
 
 const cloudinary = require('../Config/Cloudinaryconfig · JS');
 const getNextId  = require('../generateID/nextID');
@@ -291,6 +292,20 @@ exports.completeProfile = async (req, res) => {
     // 9. COMMIT TRANSACTION
     // ─────────────────────────────────────────
     await session.commitTransaction();
+    if (role === 'teacher') {
+        try {
+            const { notifyAdmin } = require('../services/notificationService');
+            await notifyAdmin(
+                "Nouveau profil à valider",
+                `Le professeur ${firstname} ${familyname} vient de s'inscrire. Son CV et ses diplômes sont en attente de vérification.`,
+                "NEW_TEACHER",
+                user._id
+            );
+        } catch (notifErr) {
+            console.error("Erreur notification Admin (Inscription):", notifErr.message);
+            // On ne bloque pas l'inscription si la notification échoue
+        }
+    }
 
     // ─────────────────────────────────────────
     // 10. CRÉER LE DEVICE + JWT
