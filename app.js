@@ -17,9 +17,18 @@ const adminRoutes = require('./routes/adminRoutes');
 const documentRoutes = require('./routes/documentRoutes');
 const reportRoutes = require('./routes/reportRoutes.js');
 const reviewsRoutes = require('./routes/reviewRoutes');
-
 const statistic = require('./routes/profRoutes')
+
+const conversation = require('./routes/conversations');
+const mail = require('./routes/mails');
+const message = require('./routes/messages');
 const app = express();
+
+
+app.use('/api/conversations' , conversation);
+app.use('/api/mail' , mail);
+app.use('api/messages' , message);
+
 // need to remove it 
 app.use(express.static(__dirname));
 
@@ -69,6 +78,8 @@ app.use('/api/prof', statistic);
 app.use('api/report' , reportRoutes);
 
 app.use('api/review' , reviewsRoutes);
+
+
 // =====================
 // 404 HANDLER
 // =====================

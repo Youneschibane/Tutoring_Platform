@@ -110,7 +110,7 @@ const pushPromises = devices.map(device => {
   })
 });
 
-await Promise.all(pushPromises);
+await Promise.all(pushPjhromises);
 console.log("All promises done");
     }else {
         console.log('No devices found — push not sent');
@@ -265,7 +265,7 @@ const reponseFinaleEtudiant = async (req, res) => {
       const devices = await Device.find({ userId: enseignant._id, isActive: true });
 
       if (devices.length > 0) {
-        const notifTitle = accepted ? '✅ Contre-proposition acceptée' : '❌ Contre-proposition refusée';
+        const notifTitle = accepted ? 'Contre-proposition acceptée' : 'Contre-proposition refusée';
         const notifBody  = accepted
           ? `L'élève a accepté vos nouvelles conditions pour le devis de ${devis.matiere}.`
           : `L'élève a refusé vos nouvelles conditions pour le devis de ${devis.matiere}.`;

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const Mail = require('../models/Mail');
-const User = require('../models/User');
+const User = require('../models/userModel');
 const mongoose = require('mongoose');
 
 // Configuration Multer — nom de fichier SANS espaces ni caractères spéciaux
