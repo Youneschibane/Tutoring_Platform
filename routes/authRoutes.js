@@ -17,7 +17,7 @@ const rateLimit = require('express-rate-limit');
 // Rate limiter strict pour admin — dans authRoutes.js
 const adminOtpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max:      5,
+  max:      10,
   message:  { status: 'fail', message: "Trop de tentatives admin. Réessayez dans 15 minutes." }
 });
 
