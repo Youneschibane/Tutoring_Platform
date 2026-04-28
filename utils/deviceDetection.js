@@ -37,21 +37,19 @@ const handleDeviceDetection = async ({ user, req }) => {
     }
 
     // If device is new → create
-    if (!device) {
-      isNewDevice = true;
-      deviceToken = uuidv4();
+if (!device) {
+  isNewDevice = true;
 
-      device = await Device.create({
-        userId: user._id,
-        deviceToken,
-        ipAddress: currentIP,
-        userAgent,
-        deviceName,
-        location,
-        lastUsed: new Date()
-      });
-
-      // Prepare notification
+  device = await Device.create({
+    userId: user._id,
+    deviceToken: deviceToken || `pending_${user._id}_${Date.now()}`, // temporaire
+    ipAddress: currentIP,
+    userAgent,
+    deviceName,
+    location,
+    lastUsed: new Date()
+  });      
+  // Prepare notification
       const contact = contactEmail || contactPhone || user.email;
       const message = `
 Nouvelle connexion détectée :

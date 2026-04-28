@@ -100,7 +100,7 @@ const creerDevis = async (req, res) => {
       isActive: true
     });
 
-
+    console.log('Devices en base:', devices);
     if (devices.length > 0) {
       await sendExpoPush(device.rows[0].token, {
         title: 'Nouveau devis reçu !',

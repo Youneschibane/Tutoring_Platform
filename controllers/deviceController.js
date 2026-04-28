@@ -26,12 +26,13 @@ const revokeOtherDevices = async (req, res) => {
 const deviceToken = async (req, res) => {
   const { deviceToken } = req.body;
 
-  if (!deviceToken) {
-    return res.status(400).json({ message: 'deviceToken requis.' });
-  }
-
   await Device.findOneAndUpdate(
-    { deviceToken },
+    { 
+      $or: [
+        { deviceToken: deviceToken },
+        { userId: req.user._id, deviceToken: /^pending_/ } // ← remplace le pending
+      ]
+    },
     {
       userId: req.user._id,
       deviceToken,
@@ -45,6 +46,7 @@ const deviceToken = async (req, res) => {
 
   res.status(200).json({ message: 'Push token registered.' });
 };
+
 
 module.exports = {
   revokeOtherDevices,
