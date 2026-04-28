@@ -4,6 +4,7 @@ const Student = require('../models/studentModel');
 const Parent  = require('../models/parentModel');
 const Admin   = require('../models/adminModel');
 const Device  = require('../models/deviceModel');
+const { notifyAdmin } = require('../controllers/notificationService');
 
 const cloudinary = require('../Config/Cloudinaryconfig · JS');
 const getNextId  = require('../generateID/nextID');
