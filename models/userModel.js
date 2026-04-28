@@ -64,7 +64,9 @@ const userSchema = new mongoose.Schema({
     postaladr: {
         type: Number,
         required: true,
-    }
+    },
+    profilePic: { type: String, default: "" }
+
 
 },
     { timestamps: true },

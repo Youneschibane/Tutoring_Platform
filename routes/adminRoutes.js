@@ -6,6 +6,7 @@ const { getAllServices, searchServices , getAllSubjects } = require('../controll
 const { addSubject, removeSubject, getAllLevels , getOptions,getSubjects,getCycles } = require('../controllers/adminEducationController');
 const { getAllStudents, searchStudents, getAnneesByCycle } = require('../controllers/adminStudentController');
 const { getAllRules, addRule, deleteRule } = require('../controllers/adminRuleController');
+const adminCtrl = require('../controllers/adminController');
 
 router.get('/students/annees/:cycle',  getAnneesByCycle); 
 router.get('/students',                getAllStudents);
@@ -31,5 +32,16 @@ router.get('/education/cycles',   getCycles);
 router.get   ('/rules',      getAllRules);
 router.post  ('/rules',      addRule);
 router.delete('/rules/:id',  deleteRule);
+
+
+router.get   ('/reports',                 adminCtrl.getReports);
+router.get   ('/reports/:id',             adminCtrl.getReportById);
+router.patch ('/reports/:id/status',      adminCtrl.updateReportStatus);
+router.put   ('/ban',                     adminCtrl.banUser);
+router.patch ('/moderate/:id_evaluation', adminCtrl.moderateEvaluation);
+router.get   ('/inbox',                   adminCtrl.getAdminMailbox);
+router.delete('/reports/:id', adminCtrl.deleteReport);
+
+
 
 module.exports = router;

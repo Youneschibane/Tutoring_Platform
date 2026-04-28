@@ -92,6 +92,9 @@ const enseignantSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+    
+  
+  reviewsCount: { type: Number, default: 0 },
 
   subjects: [{
     name: {

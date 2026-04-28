@@ -1,6 +1,6 @@
 const Evaluation = require('../models/Evaluation');
-const Teacher = require('../models/Teacher'); 
-const User = require('../models/User'); // ← ajouter en haut du fichier
+const Teacher = require('../models/teacherModel'); 
+const User = require('../models/userModel'); // ← ajouter en haut du fichier
 
 // ==========================================
 // TÂCHE 1 : Laisser une évaluation (POST)
