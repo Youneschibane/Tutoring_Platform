@@ -2,6 +2,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 require('dotenv').config();
+const cors = require('cors');
 
 const authRoutes = require('./routes/authRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
@@ -23,7 +24,7 @@ const app = express();
 // need to remove it 
 app.use(express.static(__dirname));
 
-
+app.use(cors());
 // =====================
 // GLOBAL MIDDLEWARES
 // =====================
@@ -64,9 +65,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/prof', statistic);
 
 
-app.use('api/report' , reportRoutes);
+app.use('/api/report' , reportRoutes);
 
-app.use('api/review' , reviewsRoutes);
+app.use('/api/review' , reviewsRoutes);
 // =====================
 // 404 HANDLER
 // =====================

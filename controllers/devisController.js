@@ -4,7 +4,7 @@ const Education = require('../models/educationModel');
 const Teacher = require('../models/teacherModel');
 const mongoose = require('mongoose');
 const Device = require('../models/deviceModel');
-const sendPush = require('../utils/sendNotification');
+const sendPush = require('../utils/sendExpoPush');
 
 
 const creerDevis = async (req, res) => {
@@ -102,16 +102,12 @@ const creerDevis = async (req, res) => {
 
 
     if (devices.length > 0) {
-const pushPromises = devices.map(device => {
-  return sendPush(device.deviceToken, {
-    title: ' Nouveau devis',
-    body: `Nouveau devis pour ${nouveauDevis.matiere} — ${budget_estime} DA`,
-    url: '/devis'
-  })
-});
-
-await Promise.all(pushPromises);
-console.log("All promises done");
+      await sendExpoPush(device.rows[0].token, {
+        title: 'Nouveau devis reçu !',
+        body: `Un élève a demandé un devis pour ${matiere}`,
+        url: '/devis',
+        extra: { type: 'devis' },
+      });
     }else {
         console.log('No devices found — push not sent');
 
