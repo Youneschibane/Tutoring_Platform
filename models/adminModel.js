@@ -7,6 +7,12 @@ const adminSchema = new mongoose.Schema({
     required: true,
     unique: true
   }, 
+
+  fcmToken: {  // pour notifications 
+    type: String,
+    default: null,
+},
+  
   // Using strict: false to allow fields from req.body to be saved even if not explicitly defined here
   // since we don't know the full schema requirements yet.
 }, { strict: false });
