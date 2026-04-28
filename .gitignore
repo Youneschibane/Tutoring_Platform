@@ -30,12 +30,5 @@ dist/
 
 
 
-testSearch.js
-testMongoTeacher.js
-testMongo.js
-testCreateSession.js
-
-fixServices.js
-fix-mongoose.js
-Cleanduplicates.js
-
+//ignore the test folder
+y-tests/
