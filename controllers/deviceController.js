@@ -9,7 +9,7 @@ const revokeOtherDevices = async (req, res) => {
       return res.status(400).json({ message: 'Current device token required in x-device-token header or deviceToken body.' });
     }
 
-    await Device.deleteMany({ user: req.user._id, deviceToken: { $ne: currentDeviceToken } });
+    await Device.deleteMany({ userId: req.user._id, deviceToken: { $ne: currentDeviceToken } });
 
     return res.status(200).json({
       message: 'All other devices revoked successfully.'
@@ -23,8 +23,12 @@ const revokeOtherDevices = async (req, res) => {
   }
 };
 
-const deviceToken =   async (req, res) => {
+const deviceToken = async (req, res) => {
   const { deviceToken } = req.body;
+
+  if (!deviceToken) {
+    return res.status(400).json({ message: 'deviceToken requis.' });
+  }
 
   await Device.findOneAndUpdate(
     { deviceToken },
@@ -32,14 +36,15 @@ const deviceToken =   async (req, res) => {
       userId: req.user._id,
       deviceToken,
       isActive: true,
-      lastUsed: new Date()
+      lastUsed: new Date(),
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      ipAddress: req.ip || 'Unknown',
     },
     { upsert: true, new: true }
   );
 
   res.status(200).json({ message: 'Push token registered.' });
-}
-
+};
 
 module.exports = {
   revokeOtherDevices,
