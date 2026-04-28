@@ -84,6 +84,7 @@ const buildBaseFilter = ({
 }) => {
   const filter = {
     isDeleted: false,
+    'archivedMeta.isArchived': { $ne: true },
     $and: [
       {
         $or: [

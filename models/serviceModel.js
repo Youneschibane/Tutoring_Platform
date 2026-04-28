@@ -107,6 +107,26 @@ const serviceSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
     index: true
+  },
+
+  // ── archive metadata ────────────────────────
+  archivedMeta: {
+    isArchived: {
+      type: Boolean,
+      default: false
+    },
+    reason: {
+      type: String,
+      default: null
+    },
+    archivedAt: {
+      type: Date,
+      default: null
+    },
+    id_enseignant: {
+      type: Number,
+      default: null
+    }
   }
 
 }, {
@@ -120,6 +140,8 @@ serviceSchema.index({ isDeleted: 1, suspendu: 1, date_creation: -1 });
 serviceSchema.index({ nom_service: 'text', matiere: 'text' });
 
 serviceSchema.index({ prix: 1, niveau_concerne: 1 });
+
+serviceSchema.index({ 'archivedMeta.isArchived': 1, id_enseignant: 1 });
 
 const Service = mongoose.model('Service', serviceSchema);
 

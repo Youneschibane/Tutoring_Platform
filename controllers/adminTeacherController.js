@@ -12,7 +12,9 @@ const sendEmail = require('../utils/sendEmail');
  * - Filtre: acceptanceStatus = 'pending'
  * - Tri: par createdAt ascendant (queue FIFO)
  * - Retour: total count + tableau de données
- */exports.getPendingTeachers = async (req, res) => {
+ *
+ */
+exports.getPendingTeachers = async (req, res) => {
   try {
 
     const page = req.query.page * 1 || 1;
@@ -119,13 +121,31 @@ const sendEmail = require('../utils/sendEmail');
  * Récupère le profil complet d'un enseignant + ses documents
  * Param: id_enseignant (Number, via URL)
  */
+
 exports.getTeacherFullProfile = async (req, res) => {
   try {
-    const { id } = req.params; // id_enseignant
+    console.log(`Fetching full profile for teacher ID: ${req.params.id}`);
+    //afficher le type de id_enseignant
+    console.log(`Type of id_enseignant: ${typeof req.params.id}`);
 
-    // 1. Fetch teacher profile
-    const teacher = await Teacher.findOne({ id_enseignant: parseInt(id) })
-      .populate('reviewedBy', 'firstname familyname email')
+    const teacherId = parseInt(req.params.id);
+    
+
+    // 0. Vérification ID
+    if (!teacherId) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'ID enseignant invalide'
+      });
+    }
+
+    // 1. Récupérer Teacher
+    const teacher = await Teacher.findOne({
+      id_enseignant: teacherId,
+      
+    })
+      .populate('reviewedBy', 'firstname familyname')
+      .select('-__v')
       .lean();
 
     if (!teacher) {
@@ -134,35 +154,107 @@ exports.getTeacherFullProfile = async (req, res) => {
         message: 'Enseignant introuvable'
       });
     }
-
-    // 2. Fetch corresponding User document for additional info
-    const user = await User.findOne({ idmembre: parseInt(id) })
-      .select('firstname familyname email numberphone createdAt')
-      .lean();
-
-    // 3. Fetch all documents linked to this teacher
-    // Match via enseignant field (Teacher ObjectId) or by id_enseignant (fallback)
-    const documents = await Document.find({ 
-      enseignant: teacher._id 
+    console.log(`Teacher data for ID ${teacherId}:`, teacher);
+   
+    // 2. Récupérer User associé
+    const user = await User.findOne({
+      idmembre: teacherId,
+     
     })
-      .select('nom_fichier type_document access_type createdAt description')
+      .select(`
+        firstname 
+        familyname 
+        email 
+        numberphone 
+        photo_profil 
+        createdAt
+      `)
       .lean();
+      console.log(`User data for teacher ID ${teacherId}:`, user);
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Utilisateur associé introuvable'
+      });
+    }
+
+    // 3. Construire les documents depuis teacher (CV + Diplômes)
+    const documents = [];
+
+    // CV
+    if (teacher.documents?.cv?.url) {
+      documents.push({
+        type: 'cv',
+        url: teacher.documents.cv.url,
+        uploadedAt: teacher.documents.cv.uploadedAt || null
+      });
+    }
+
+    // Diplômes
+    if (teacher.documents?.diplomes?.length > 0) {
+      teacher.documents.diplomes.forEach(diplome => {
+        documents.push({
+          type: 'diplome',
+          nom: diplome.nom,
+          matiere: diplome.matiere,
+          cycle: diplome.cycle,
+          url: diplome.url,
+          uploadedAt: diplome.uploadedAt
+        });
+      });
+    }
+
+    // 4. Réponse propre
+    const response = {
+      teacher: {
+        id: teacher.id_enseignant,
+        description: teacher.description_pedagogique,
+        modalite: teacher.modalite,
+        deplacement: teacher.deplacement,
+        rayon: teacher.rayon_deplacement,
+        location: teacher.location,
+        rating: teacher.rating,
+        reviewsCount: teacher.reviewsCount,
+        subjects: teacher.subjects,
+        accepted: teacher.accepted,
+        status: teacher.acceptanceStatus,
+        reviewedBy: teacher.reviewedBy
+      },
+
+      user: {
+        fullname: `${user.firstname} ${user.familyname}`,
+        email: user.email,
+        phone: user.numberphone,
+        photo: user.photo_profil,
+        memberSince: user.createdAt
+      },
+
+      stats: {
+        documentsCount: documents.length,
+        rating: teacher.rating,
+        reviews: teacher.reviewsCount
+      },
+
+      documents
+    };
 
     return res.status(200).json({
       status: 'success',
-      message: 'Profil enseignant et documents récupérés',
-      data: {
-        teacher,
-        user,
-        documents,
-        documentCount: documents.length
-      }
+      data: response
     });
+
   } catch (error) {
     console.error('getTeacherFullProfile error:', error);
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Erreur serveur'
+    });
   }
 };
+
+
 
 /**
  * acceptTeacher

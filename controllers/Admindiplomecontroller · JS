@@ -1,0 +1,282 @@
+const Teacher  = require('../models/teacherModel');
+const User     = require('../models/userModel');
+const cloudinary = require('../Config/Cloudinaryconfig · JS');
+
+// ─────────────────────────────────────────────────────────────────
+// CYCLE HIERARCHY
+// Primaire(0) < Moyen(1) < Lycée(2) < Universitaire(3)
+// ─────────────────────────────────────────────────────────────────
+const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+
+const cycleRank = (cycle) => {
+  const idx = CYCLE_ORDER.indexOf(cycle);
+  return idx === -1 ? -1 : idx;
+};
+
+// ─────────────────────────────────────────────────────────────────
+// HELPER — Ajouter matiere/cycle dans subjects sans doublon
+// Règle : si la même matière existe déjà, on garde le niveau le plus élevé
+// ─────────────────────────────────────────────────────────────────
+const mergeSubject = (subjects, newMatiere, newCycle) => {
+  const matiereLower = newMatiere.trim().toLowerCase();
+
+  // Cherche si la matière existe déjà (insensible à la casse)
+  const existingIdx = subjects.findIndex(
+    (s) => s.name.trim().toLowerCase() === matiereLower
+  );
+
+  if (existingIdx === -1) {
+    // Matière absente → on l'ajoute directement
+    subjects.push({ name: newMatiere.trim(), cycle: newCycle });
+    return { action: 'added', subjects };
+  }
+
+  const existingCycle = subjects[existingIdx].cycle;
+  const existingRank  = cycleRank(existingCycle);
+  const newRank       = cycleRank(newCycle);
+
+  if (newRank > existingRank) {
+    // Nouveau niveau supérieur → on remplace
+    subjects[existingIdx].cycle = newCycle;
+    return { action: 'upgraded', from: existingCycle, to: newCycle, subjects };
+  }
+
+  if (newRank === existingRank) {
+    // Même niveau → rien à faire (déjà présent)
+    return { action: 'duplicate', subjects };
+  }
+
+  // Niveau inférieur → on ignore, on garde l'existant
+  return { action: 'ignored', existing: existingCycle, subjects };
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 1. GET — Liste des teachers ayant au moins 1 diplôme en attente
+// GET /api/admin/diplomes/pending-teachers
+// ═══════════════════════════════════════════════════════════════
+exports.getTeachersWithPendingDiplomes = async (req, res) => {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+
+    // Teachers qui ont au moins 1 entrée dans pending_diplomes
+    const teachers = await Teacher.find({
+      'pending_diplomes.0': { $exists: true }
+    })
+      .select('id_enseignant pending_diplomes subjects acceptanceStatus')
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const total = await Teacher.countDocuments({
+      'pending_diplomes.0': { $exists: true }
+    });
+
+    // Enrichir avec infos User (nom, prénom, email)
+    const teacherIds = teachers.map((t) => t.id_enseignant);
+    const users = await User.find({ idmembre: { $in: teacherIds }, role: 'teacher' })
+      .select('idmembre firstname familyname email')
+      .lean();
+
+    const userMap = {};
+    users.forEach((u) => { userMap[u.idmembre] = u; });
+
+    const enriched = teachers.map((t) => ({
+      ...t,
+      user:          userMap[t.id_enseignant] || null,
+      pendingCount:  t.pending_diplomes.length
+    }));
+
+    return res.status(200).json({
+      status:     'success',
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data:       enriched
+    });
+
+  } catch (error) {
+    console.error("getTeachersWithPendingDiplomes error:", error.message);
+    return res.status(500).json({ status: 'error', message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 2. GET — Diplômes en attente d'UN teacher spécifique
+// GET /api/admin/diplomes/pending/:id_enseignant
+// ═══════════════════════════════════════════════════════════════
+exports.getPendingDiplomesOfTeacher = async (req, res) => {
+  try {
+    const id_enseignant = parseInt(req.params.id_enseignant);
+
+    if (isNaN(id_enseignant)) {
+      return res.status(400).json({
+        status:  'fail',
+        message: "id_enseignant invalide."
+      });
+    }
+
+    const teacher = await Teacher.findOne({ id_enseignant })
+      .select('id_enseignant pending_diplomes subjects documents.diplomes')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({
+        status:  'fail',
+        message: "Enseignant introuvable."
+      });
+    }
+
+    const user = await User.findOne({ idmembre: id_enseignant, role: 'teacher' })
+      .select('firstname familyname email')
+      .lean();
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        teacher: {
+          id_enseignant: teacher.id_enseignant,
+          user,
+          subjects:          teacher.subjects,
+          accepted_diplomes: teacher.documents?.diplomes || [],
+          pending_diplomes:  teacher.pending_diplomes
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("getPendingDiplomesOfTeacher error:", error.message);
+    return res.status(500).json({ status: 'error', message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 3. PATCH — Accepter un diplôme en attente
+// PATCH /api/admin/diplomes/accept/:id_enseignant/:diplome_id
+// ═══════════════════════════════════════════════════════════════
+exports.accepterDiplome = async (req, res) => {
+  try {
+    const id_enseignant = parseInt(req.params.id_enseignant);
+    const { diplome_id } = req.params;
+
+    if (isNaN(id_enseignant)) {
+      return res.status(400).json({ status: 'fail', message: "id_enseignant invalide." });
+    }
+
+    const teacher = await Teacher.findOne({ id_enseignant });
+    if (!teacher) {
+      return res.status(404).json({ status: 'fail', message: "Enseignant introuvable." });
+    }
+
+    // Trouver le diplôme dans pending_diplomes
+    const pending = teacher.pending_diplomes.id(diplome_id);
+    if (!pending) {
+      return res.status(404).json({
+        status:  'fail',
+        message: "Diplôme en attente introuvable."
+      });
+    }
+
+    // ── Fusion dans subjects (avec déduplication par niveau) ──
+    const mergeResult = mergeSubject(
+      teacher.subjects,
+      pending.matiere,
+      pending.cycle
+    );
+
+    // ── Déplacer vers documents.diplomes (acceptés) ──
+    const acceptedDiplome = {
+      url:        pending.url,
+      publicId:   pending.publicId,
+      nom:        pending.nom,
+      matiere:    pending.matiere,
+      cycle:      pending.cycle,
+      uploadedAt: pending.uploadedAt
+    };
+
+    teacher.documents.diplomes.push(acceptedDiplome);
+
+    // ── Retirer de pending_diplomes ──
+    teacher.pending_diplomes.pull(diplome_id);
+
+    await teacher.save();
+
+    const added = teacher.documents.diplomes[teacher.documents.diplomes.length - 1];
+
+    return res.status(200).json({
+      status:  'success',
+      message: "Diplôme accepté avec succès.",
+      data: {
+        diplome_accepted:  added,
+        subject_merge:     mergeResult,
+        subjects_updated:  teacher.subjects
+      }
+    });
+
+  } catch (error) {
+    console.error("accepterDiplome error:", error.message);
+    return res.status(500).json({ status: 'error', message: "Erreur serveur.", details: error.message });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 4. DELETE — Rejeter (supprimer) un diplôme en attente
+// DELETE /api/admin/diplomes/reject/:id_enseignant/:diplome_id
+// Body (optionnel): { reason }
+// ═══════════════════════════════════════════════════════════════
+exports.rejeterDiplome = async (req, res) => {
+  try {
+    const id_enseignant = parseInt(req.params.id_enseignant);
+    const { diplome_id } = req.params;
+    const { reason }     = req.body;
+
+    if (isNaN(id_enseignant)) {
+      return res.status(400).json({ status: 'fail', message: "id_enseignant invalide." });
+    }
+
+    const teacher = await Teacher.findOne({ id_enseignant });
+    if (!teacher) {
+      return res.status(404).json({ status: 'fail', message: "Enseignant introuvable." });
+    }
+
+    const pending = teacher.pending_diplomes.id(diplome_id);
+    if (!pending) {
+      return res.status(404).json({
+        status:  'fail',
+        message: "Diplôme en attente introuvable."
+      });
+    }
+
+    // Supprimer le fichier de Cloudinary
+    if (pending.publicId) {
+      try {
+        await cloudinary.uploader.destroy(pending.publicId);
+      } catch (e) {
+        console.warn("Cloudinary delete warning:", e.message);
+      }
+    }
+
+    const rejectedInfo = {
+      nom:     pending.nom,
+      matiere: pending.matiere,
+      cycle:   pending.cycle
+    };
+
+    // Retirer de pending
+    teacher.pending_diplomes.pull(diplome_id);
+    await teacher.save();
+
+    return res.status(200).json({
+      status:  'success',
+      message: "Diplôme rejeté et supprimé.",
+      data: {
+        rejected: rejectedInfo,
+        reason:   reason || null
+      }
+    });
+
+  } catch (error) {
+    console.error("rejeterDiplome error:", error.message);
+    return res.status(500).json({ status: 'error', message: "Erreur serveur.", details: error.message });
+  }
+};

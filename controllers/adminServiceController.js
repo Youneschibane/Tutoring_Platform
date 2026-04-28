@@ -8,14 +8,9 @@ const { sendEmail } = require('../utils/sendEmail');
 exports.suspendreService = async (req, res) => {
   try {
     const { id_service } = req.params;
-    const { reason }     = req.body;
+    
 
-    if (!reason) {
-      return res.status(400).json({
-        status: 'fail',
-        message: "La raison de la suspension est obligatoire."
-      });
-    }
+  
 
     const service = await Service.findOne({ id_service: Number(id_service) });
     if (!service) {
@@ -36,7 +31,7 @@ exports.suspendreService = async (req, res) => {
         suspendu:         true,
         suspendedAt:      new Date(),
         suspendedBy:      req.user._id,
-        suspensionReason: reason,
+        
         actif:            false   // désactiver aussi le service
       },
       { returnDocument: "after" }
@@ -50,7 +45,7 @@ exports.suspendreService = async (req, res) => {
           await sendEmail({
             email:   teacher.email,
             subject: "⚠️ Votre service a été suspendu",
-            message: `Votre service "${service.nom_service}" a été suspendu par l'administration.\n\nRaison : ${reason}\n\nVeuillez contacter le support pour plus d'informations.`
+            message: `Votre service "${service.nom_service}" a été suspendu par l'administration.\n\nVeuillez contacter le support pour plus d'informations.`
           });
         }
       } catch (e) {
@@ -65,6 +60,7 @@ exports.suspendreService = async (req, res) => {
     });
 
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ status: 'error', message: error.message });
   }
 };
@@ -134,14 +130,8 @@ exports.reactiverService = async (req, res) => {
 exports.supprimerService = async (req, res) => {
   try {
     const { id_service } = req.params;
-    const { reason }     = req.body;
+   
 
-    if (!reason) {
-      return res.status(400).json({
-        status: 'fail',
-        message: "La raison de la suppression est obligatoire."
-      });
-    }
 
     const service = await Service.findOne({ id_service: Number(id_service) });
     if (!service) {
@@ -169,7 +159,7 @@ exports.supprimerService = async (req, res) => {
           await sendEmail({
             email:   teacher.email,
             subject: "❌ Votre service a été supprimé",
-            message: `Votre service "${service.nom_service}" a été supprimé par l'administration.\n\nRaison : ${reason}\n\nVeuillez contacter le support pour plus d'informations.`
+            message: `Votre service "${service.nom_service}" a été supprimé par l'administration.\n\nVeuillez contacter le support pour plus d'informations.`
           });
         }
       } catch (e) {

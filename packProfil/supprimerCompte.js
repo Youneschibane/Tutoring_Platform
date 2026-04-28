@@ -235,29 +235,54 @@ exports.permanentlyDeleteAccount = async (userId) => {
     // SUPPRESSION DÉPENDANTE PAR RÔLE
     // ─────────────────────────────────────────────────
     if (user.role === 'student') {
-      // Supprimer l'élève et le retirer des séances
+      // Marquer l'élève comme supprimé dans toutes ses séances (soft delete)
       const student = await Student.findOne({ id_eleve: user.idmembre }).session(session);
       if (student) {
+        // Mark student as deleted in all sessions (use user._id not student._id)
         await Seance.updateMany(
-          { etudiants: student._id },
-          { $pull: { etudiants: student._id } },
-          { session }
+          { 'students.userId': user._id },
+          {
+            $set: {
+              'students.$[elem].isDeleted': true,
+              'students.$[elem].deletedAt': new Date()
+            }
+          },
+          {
+            arrayFilters: [{ 'elem.userId': user._id }],
+            session
+          }
         );
         await Student.deleteOne({ _id: student._id }, { session });
       }
     } else if (user.role === 'parent') {
-      // Supprimer le parent et tous ses enfants + leurs références dans les séances
+      // Supprimer le parent et marquer tous ses enfants comme supprimés dans les séances
       const parent = await Parent.findOne({ id_parent: user.idmembre }).session(session);
       if (parent && parent.enfants) {
         for (const enfantRef of parent.enfants) {
-          const childId = enfantRef.student;
-          if (childId) {
-            cascadedDeletions.studentDeletionIds.push(childId);
-            await Seance.updateMany(
-              { etudiants: childId },
-              { $pull: { etudiants: childId } },
-              { session }
-            );
+          const childStudentId = enfantRef.student;  // This is Student._id
+          if (childStudentId) {
+            // Find the User associated with this child student
+            const childStudent = await Student.findOne({ _id: childStudentId }).session(session);
+            if (childStudent) {
+              const childUser = await User.findOne({ idmembre: childStudent.id_eleve }).session(session);
+              if (childUser) {
+                cascadedDeletions.studentDeletionIds.push(childStudentId);
+                // Mark child as deleted in all sessions (use childUser._id)
+                await Seance.updateMany(
+                  { 'students.userId': childUser._id },
+                  {
+                    $set: {
+                      'students.$[elem].isDeleted': true,
+                      'students.$[elem].deletedAt': new Date()
+                    }
+                  },
+                  {
+                    arrayFilters: [{ 'elem.userId': childUser._id }],
+                    session
+                  }
+                );
+              }
+            }
           }
         }
         await Student.deleteMany({ _id: { $in: cascadedDeletions.studentDeletionIds } }, { session });
@@ -278,9 +303,33 @@ exports.permanentlyDeleteAccount = async (userId) => {
           cascadedDeletions.removedSessionIds.push(seance.id_seance);
         }
 
-        // Supprimer les services et séances du prof
-        await Service.deleteMany({ id_enseignant: user.idmembre }, { session });
-        await Seance.deleteMany({ enseignant: teacher._id }, { session });
+        // Soft delete services — mark as archived instead of hard delete
+        await Service.updateMany(
+          { id_enseignant: user.idmembre },
+          {
+            $set: {
+              'archivedMeta.isArchived':    true,
+              'archivedMeta.reason':        'teacher_account_deleted',
+              'archivedMeta.archivedAt':    new Date(),
+              'archivedMeta.id_enseignant': user.idmembre
+            }
+          },
+          { session }
+        );
+
+        // Soft delete seances — mark as archived instead of hard delete
+        await Seance.updateMany(
+          { enseignant: teacher._id },
+          {
+            $set: {
+              'archivedMeta.isArchived':    true,
+              'archivedMeta.reason':        'teacher_account_deleted',
+              'archivedMeta.archivedAt':    new Date(),
+              'archivedMeta.id_enseignant': user.idmembre
+            }
+          },
+          { session }
+        );
         
         // Supprimer le profil prof
         await Teacher.deleteOne({ _id: teacher._id }, { session });

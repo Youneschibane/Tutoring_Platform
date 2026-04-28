@@ -13,7 +13,7 @@ const { sendEmail } = require('../utils/sendEmail');
 
 const handleDeviceDetection = require('../utils/deviceDetection');
 
-// Dummy hash — timing attack protection
+// Dummy hash — protection contre les timing attacks
 const DUMMY_HASH = '$2b$12$LF2pOHq3PBnONQBFJMVnC.BbSNDTMRipqBR8eFoynF/BQDHpZIaWi';
 
 // ═══════════════════════════════════════════════════════════════
@@ -38,7 +38,7 @@ const saveTokenOnDevice = async ({ userId, device, token }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER — Fetch role data
+// HELPER — Récupérer les données selon le rôle
 // ═══════════════════════════════════════════════════════════════
 const getRoleData = async (user) => {
   switch (user.role) {
@@ -61,6 +61,7 @@ const getRoleData = async (user) => {
 // ═══════════════════════════════════════════════════════════════
 // SIGN IN — Utilisateurs (student, parent, teacher)
 // POST /api/auth/signin
+// Body: { email | phone, password }
 // ═══════════════════════════════════════════════════════════════
 const signIn = async (req, res) => {
   try {
@@ -74,18 +75,18 @@ const signIn = async (req, res) => {
       });
     }
 
-    // 2. Build query
+    // 2. Construire la query
     const query = {};
     if (email) query.email       = email.trim().toLowerCase();
     if (phone) query.numberphone = phone.trim();
 
-    // 3. Find user — exclude admin from this endpoint
+    // 3. Trouver l'utilisateur — exclure les admins
     const user = await User.findOne({ ...query, role: { $ne: 'admin' } })
       .select('+password');
 
-    // 4. Safe password comparison (timing attack protection)
-    const hashToCompare  = user ? user.password : DUMMY_HASH;
-    const passwordMatch  = await bcrypt.compare(password, hashToCompare);
+    // 4. Comparaison sécurisée (anti-timing attack)
+    const hashToCompare = user ? user.password : DUMMY_HASH;
+    const passwordMatch = await bcrypt.compare(password, hashToCompare);
 
     if (!user || !passwordMatch) {
       return res.status(401).json({
@@ -94,17 +95,23 @@ const signIn = async (req, res) => {
       });
     }
 
-   
+    // 5. Vérifier que le compte est actif
+    if (!user.isActive) {
+      return res.status(403).json({
+        status:  'fail',
+        message: "Votre compte est désactivé. Contactez l'administrateur."
+      });
+    }
 
-    // 6. Generate JWT
+    // 6. Générer le JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '90d' }
     );
 
-    // 7. Device detection + save token
-    let device = null;
+    // 7. Détection device + sauvegarde token
+    let device      = null;
     let isNewDevice = false;
 
     try {
@@ -117,10 +124,10 @@ const signIn = async (req, res) => {
 
     const deviceToken = await saveTokenOnDevice({ userId: user._id, device, token });
 
-    // 8. Role data
+    // 8. Données du rôle
     const roleData = await getRoleData(user);
 
-    // 9. Mask password
+    // 9. Masquer le mot de passe
     user.password = undefined;
 
     return res.status(200).json({
@@ -163,17 +170,19 @@ const signInAdminStep1 = async (req, res) => {
       });
     }
 
-    // 2. Find admin uniquement
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 2. Trouver l'admin uniquement
     const user = await User.findOne({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       role:  'admin'
     }).select('+password');
 
-    // 3. Safe password comparison
+    // 3. Comparaison sécurisée (anti-timing attack)
     const hashToCompare = user ? user.password : DUMMY_HASH;
     const passwordMatch = await bcrypt.compare(password, hashToCompare);
 
-    // 4. Message générique — ne pas révéler si l'admin existe
+    // 4. Message générique — ne pas révéler si le compte existe
     if (!user || !passwordMatch) {
       return res.status(401).json({
         status:  'fail',
@@ -181,44 +190,60 @@ const signInAdminStep1 = async (req, res) => {
       });
     }
 
-    // 5. Block deactivated admin
+    // 5. Vérifier que le compte est actif
     if (!user.isActive) {
       return res.status(403).json({
         status:  'fail',
-        message: "Compte désactivé."
+        message: "Compte désactivé. Contactez le super-administrateur."
       });
     }
 
-    // 6. Générer OTP 6 chiffres
-    const otp     = crypto.randomInt(100000, 999999).toString();
-    const contact = user.email;
+    // 6. Anti-spam : 1 minute entre chaque demande d'OTP
+    const existingOtp = await Otp.findOne({
+      identifier: user.email,
+      purpose:    'admin_signin'
+    });
 
-    // 7. Stocker l'OTP (5 minutes)
+    if (existingOtp) {
+      const elapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
+      if (elapsed < 60 * 1000) {
+        const remaining = Math.ceil((60 * 1000 - elapsed) / 1000);
+        return res.status(429).json({
+          status:  'fail',
+          message: `Veuillez attendre ${remaining} secondes avant de demander un nouveau code.`
+        });
+      }
+    }
+
+    // 7. Générer OTP 6 chiffres
+    const otp = crypto.randomInt(100000, 999999).toString();
+
+    // 8. Stocker l'OTP (écrase l'ancien)
     await Otp.findOneAndUpdate(
-      { identifier: contact, purpose: 'admin_signin' },
+      { identifier: user.email, purpose: 'admin_signin' },
       { otp, createdAt: new Date() },
-      { upsert: true }
+      { upsert: true, setDefaultsOnInsert: true }
     );
 
-    // 8. Envoyer l'OTP par email
+    // 9. Envoyer l'OTP par email
     try {
       await sendEmail({
-        email:   contact,
-        subject: " Code de vérification administrateur",
+        email:   user.email,
+        subject: "Code de vérification administrateur",
         message: `Votre code de connexion administrateur : ${otp}\n\nValide pendant 5 minutes.\n\nSi vous n'avez pas demandé cette connexion, ignorez ce message.`
       });
     } catch (emailError) {
       console.error("Admin OTP email error:", emailError.message);
       return res.status(500).json({
         status:  'error',
-        message: "Impossible d'envoyer le code de vérification."
+        message: "Impossible d'envoyer le code de vérification. Réessayez."
       });
     }
 
     return res.status(200).json({
       status:  'success',
       message: "Code de vérification envoyé sur votre email.",
-      email:   contact.replace(/(.{3}).*@/, '$1***@') // masquer partiellement
+      email:   user.email.replace(/(.{3}).*@/, '$1***@') // masquage partiel
     });
 
   } catch (error) {
@@ -244,17 +269,30 @@ const signInAdminStep2 = async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     // 2. Trouver l'admin
     const user = await User.findOne({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       role:  'admin'
     });
 
     if (!user) {
-      return res.status(401).json({ status: 'fail', message: "Identifiants incorrects." });
+      return res.status(401).json({
+        status:  'fail',
+        message: "Identifiants incorrects."
+      });
     }
 
-    // 3. Vérifier l'OTP
+    // 3. Vérifier que le compte est toujours actif
+    if (!user.isActive) {
+      return res.status(403).json({
+        status:  'fail',
+        message: "Compte désactivé."
+      });
+    }
+
+    // 4. Récupérer l'OTP en base
     const otpRecord = await Otp.findOne({
       identifier: user.email,
       purpose:    'admin_signin'
@@ -267,7 +305,7 @@ const signInAdminStep2 = async (req, res) => {
       });
     }
 
-    // Vérifier expiration (5 minutes)
+    // 5. Vérifier l'expiration (5 minutes)
     const elapsed = Date.now() - new Date(otpRecord.createdAt).getTime();
     if (elapsed > 5 * 60 * 1000) {
       await Otp.deleteOne({ _id: otpRecord._id });
@@ -277,6 +315,7 @@ const signInAdminStep2 = async (req, res) => {
       });
     }
 
+    // 6. Vérifier le code
     if (otpRecord.otp !== otp.toString().trim()) {
       return res.status(401).json({
         status:  'fail',
@@ -284,18 +323,18 @@ const signInAdminStep2 = async (req, res) => {
       });
     }
 
-    // 4. Supprimer l'OTP — usage unique
+    // 7. Supprimer l'OTP — usage unique
     await Otp.deleteOne({ _id: otpRecord._id });
 
-    // 5. Générer JWT admin (durée courte — 8h)
+    // 8. Générer JWT admin (8h)
     const token = jwt.sign(
       { id: user._id, role: 'admin' },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    // 6. Device detection + save token
-    let device = null;
+    // 9. Détection device + sauvegarde token
+    let device      = null;
     let isNewDevice = false;
 
     try {
@@ -308,18 +347,18 @@ const signInAdminStep2 = async (req, res) => {
 
     const deviceToken = await saveTokenOnDevice({ userId: user._id, device, token });
 
-    // 7. Role data admin
+    // 10. Données admin
     const adminData = await Admin.findOne({ id_admin: user.idmembre });
 
-    // 8. Mask password
+    // 11. Masquer le mot de passe
     user.password = undefined;
 
-    // 9. Notification de connexion — fire and forget
+    // 12. Notification de connexion — fire and forget
     (async () => {
       try {
         await sendEmail({
           email:   user.email,
-          subject: "✅ Nouvelle connexion administrateur",
+          subject: "Nouvelle connexion administrateur",
           message: `Une connexion administrateur a été effectuée.\n\nAppareil : ${device?.deviceName || 'Inconnu'}\nLocalisation : ${device?.location || 'Inconnue'}\nDate : ${new Date().toLocaleString()}\n\nSi ce n'était pas vous, changez immédiatement votre mot de passe.`
         });
       } catch (e) {
@@ -350,11 +389,8 @@ const signInAdminStep2 = async (req, res) => {
   }
 };
 
-
-
-
 // ═══════════════════════════════════════════════════════════════
-// RESEND ADMIN OTP — Renvoie un nouveau code si l'ancien a expiré
+// RESEND ADMIN OTP — Renvoie un nouveau code
 // POST /api/auth/admin/resend-otp
 // Body: { email }
 // ═══════════════════════════════════════════════════════════════
@@ -364,53 +400,74 @@ const resendAdminOtp = async (req, res) => {
 
     if (!email) {
       return res.status(400).json({
-        status: 'fail',
+        status:  'fail',
         message: "L'adresse email est obligatoire."
       });
     }
 
-    // 1. Vérifier que l'utilisateur est bien un admin et actif
-    const user = await User.findOne({ 
-      email: email.trim().toLowerCase(), 
-      role: 'admin',
-      isActive: true 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Vérifier que l'admin existe et est actif
+    const user = await User.findOne({
+      email:    normalizedEmail,
+      role:     'admin',
+      isActive: true
     });
 
+    // Message générique si l'admin n'existe pas (sécurité)
     if (!user) {
-      // Message générique pour la sécurité
       return res.status(200).json({
-        status: 'success',
+        status:  'success',
         message: "Si ce compte existe, un nouveau code a été envoyé."
       });
     }
 
-    // 2. Générer un nouvel OTP
+    // 2. Anti-spam : 1 minute entre chaque renvoi
+    const existingOtp = await Otp.findOne({
+      identifier: user.email,
+      purpose:    'admin_signin'
+    });
+
+    if (existingOtp) {
+      const elapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
+      if (elapsed < 60 * 1000) {
+        const remaining = Math.ceil((60 * 1000 - elapsed) / 1000);
+        return res.status(429).json({
+          status:  'fail',
+          message: `Veuillez attendre ${remaining} secondes avant de renvoyer un code.`
+        });
+      }
+    }
+
+    // 3. Générer un nouvel OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    // 3. Mettre à jour l'OTP en base (écrase le précédent)
+    // 4. Mettre à jour l'OTP en base (écrase le précédent)
     await Otp.findOneAndUpdate(
       { identifier: user.email, purpose: 'admin_signin' },
       { otp, createdAt: new Date() },
-      { upsert: true }
+      { upsert: true, setDefaultsOnInsert: true }
     );
 
-    // 4. Envoyer l'email
+    // 5. Envoyer l'email
     try {
       await sendEmail({
-        email: user.email,
+        email:   user.email,
         subject: "Nouveau code de vérification administrateur",
-        message: `Votre nouveau code de connexion administrateur : ${otp}\n\nValide pendant 5 minutes.`
+        message: `Votre nouveau code de connexion administrateur : ${otp}\n\nValide pendant 5 minutes.\n\nSi vous n'avez pas demandé ce code, ignorez ce message.`
       });
     } catch (emailError) {
+      console.error("resendAdminOtp email error:", emailError.message);
       return res.status(500).json({
-        status: 'error',
-        message: "Erreur lors de l'envoi de l'email."
+        status:  'error',
+        message: "Erreur lors de l'envoi de l'email. Réessayez."
       });
     }
 
     return res.status(200).json({
-      status: 'success',
-      message: "Un nouveau code a été envoyé sur votre email."
+      status:  'success',
+      message: "Un nouveau code a été envoyé sur votre email.",
+      email:   user.email.replace(/(.{3}).*@/, '$1***@')
     });
 
   } catch (error) {
@@ -419,13 +476,9 @@ const resendAdminOtp = async (req, res) => {
   }
 };
 
-
-
-
-
-module.exports = { 
-  signIn, 
-  signInAdminStep1, 
-  signInAdminStep2, 
-  resendAdminOtp 
+module.exports = {
+  signIn,
+  signInAdminStep1,
+  signInAdminStep2,
+  resendAdminOtp
 };
