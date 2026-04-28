@@ -23,6 +23,8 @@ const app = express();
 // need to remove it 
 app.use(express.static(__dirname));
 
+const cors = require('cors');
+app.use(cors());
 
 // =====================
 // GLOBAL MIDDLEWARES
