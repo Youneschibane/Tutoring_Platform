@@ -1,55 +1,27 @@
 const mongoose = require('mongoose');
 
-/**
- * @model ArchiveAction
- * @description Collection pour tracer les suppressions définitives de comptes
- * Cette collection enregistre les actions de suppression avec audit complet
- */
 const archiveActionSchema = new mongoose.Schema({
-  
-  // ─────────────────────────────────────────────────
-  // RÉFÉRENCES À L'UTILISATEUR SUPPRIMÉ
-  // ─────────────────────────────────────────────────
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
-    ref: 'User'
+    required: true
+    // index: true (Removed to keep it clean)
   },
-
   idmembre: {
     type: Number,
-    required: true,
-    index: true
+    required: true
+    // index: true (Removed: was causing duplicate warning)
   },
-
-  firstname: String,
-  familyname: String,
-  email: {
-    type: String,
-    sparse: true
-  },
-  numberphone: {
-    type: String,
-    sparse: true
-  },
-
   role: {
     type: String,
     enum: ['parent', 'student', 'teacher', 'admin'],
-    required: true,
-    index: true
+    required: true
   },
-
-  // ─────────────────────────────────────────────────
-  // INFORMATIONS DE SUPPRESSION
-  // ─────────────────────────────────────────────────
   actionType: {
     type: String,
     enum: ['soft_delete', 'hard_delete', 'cascade_delete'],
     default: 'soft_delete',
     required: true
   },
-
   deletionReason: {
     type: String,
     enum: [
@@ -63,44 +35,29 @@ const archiveActionSchema = new mongoose.Schema({
     ],
     default: 'user_request'
   },
-
   deletionScheduledAt: {
     type: Date,
     required: true
   },
-
   permanentlyDeletedAt: {
     type: Date,
     default: null
   },
-
-  // ─────────────────────────────────────────────────
-  // SNAPSHOT DES DONNÉES (pour conformité)
-  // ─────────────────────────────────────────────────
-  userSnapshot: mongoose.Schema.Types.Mixed,
-  roleDataSnapshot: mongoose.Schema.Types.Mixed,
-
-  // ─────────────────────────────────────────────────
-  // INFORMATIONS SUPPLÉMENTAIRES
-  // ─────────────────────────────────────────────────
+  dataSnapshot: {
+    type: mongoose.Schema.Types.Mixed,
+    required: true
+  },
   deletedBy: {
     type: String,
     enum: ['self', 'admin', 'system'],
     default: 'self'
   },
-
   adminNotes: String,
-
-  // ─────────────────────────────────────────────────
-  // RETENTION (pour conformité RGPD)
-  // ─────────────────────────────────────────────────
   retentionUntil: {
     type: Date,
-    default: () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 an par défaut
-    index: true
+    default: () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    // index: true (Removed: was causing duplicate warning)
   },
-
-  // Références vers les entités supprimées
   cascadedDeletions: {
     parentDeletionIds: [mongoose.Schema.Types.ObjectId],
     studentDeletionIds: [mongoose.Schema.Types.ObjectId],
@@ -108,18 +65,17 @@ const archiveActionSchema = new mongoose.Schema({
     removedSessionIds: [Number],
     removedServiceIds: [Number]
   }
-
 }, { timestamps: true });
 
 // ─────────────────────────────────────────────────
-// INDEX
+// INDEXES (Only defined once here)
 // ─────────────────────────────────────────────────
+archiveActionSchema.index({ userId: 1, role: 1 });
 archiveActionSchema.index({ role: 1, permanentlyDeletedAt: -1 });
-archiveActionSchema.index({ idmembre: 1 });
-archiveActionSchema.index({ email: 1 }, { sparse: true });
-archiveActionSchema.index({ numberphone: 1 }, { sparse: true });
+archiveActionSchema.index({ idmembre: 1 }); // Keeps this one
+archiveActionSchema.index({ actionType: 1, createdAt: -1 });
 
-// TTL Index — suppression automatique après retentionUntil
+// TTL Index — Cleanly defined once
 archiveActionSchema.index({ retentionUntil: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('ArchiveAction', archiveActionSchema);

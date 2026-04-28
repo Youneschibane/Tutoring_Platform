@@ -67,13 +67,14 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
 // =====================
-// SAFE SANITIZATION MIDDLEWARE (FIX)
+// SAFE SANITIZATION MIDDLEWARE
 // =====================
 app.use((req, res, next) => {
   const clean = (val) => {
     if (typeof val === 'string') {
-      // 1. Basic Mongo Sanitize (remove $ and .)
-      let s = val.replace(/[$.]/g, '');
+      // 1. Basic Mongo Sanitize : retire uniquement $ (opérateurs Mongo)
+      //    On ne retire PAS le point "." car il est légal dans les emails, URLs, etc.
+      let s = val.replace(/\$/g, '');
       // 2. XSS Sanitize
       return xss(s);
     }
@@ -88,18 +89,17 @@ app.use((req, res, next) => {
     return val;
   };
 
-  // Sanitize Body (Writables)
+  // Sanitize Body
   if (req.body) req.body = clean(req.body);
 
-  // Sanitize Query & Params (Property-only update to avoid Getter error)
+  // Sanitize Query (property-only update pour éviter le crash getter)
   if (req.query) {
     const cleanedQuery = clean(req.query);
-    // Delete existing keys and re-assign inside the object 
-    // This avoids "req.query = ..." which causes the crash
     Object.keys(req.query).forEach(key => delete req.query[key]);
     Object.assign(req.query, cleanedQuery);
   }
-  
+
+  // Sanitize Params
   if (req.params) {
     const cleanedParams = clean(req.params);
     Object.assign(req.params, cleanedParams);

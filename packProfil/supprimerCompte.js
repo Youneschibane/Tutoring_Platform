@@ -75,8 +75,10 @@ exports.deleteAccount = async (req, res) => {
       deletionReason: 'user_request',
       deletionScheduledAt: deletionDate,
       permanentlyDeletedAt: null,
-      userSnapshot: user.toObject(),
-      roleDataSnapshot: roleData,
+      dataSnapshot: {
+        user: user.toObject(),
+        roleData: roleData
+      },
       deletedBy: 'self',
       cascadedDeletions: {
         parentDeletionIds: [],
