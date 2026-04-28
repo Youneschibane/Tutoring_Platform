@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
-const Conversation = require('../models/Conversation'); // IMPORTÉ ICI
+const Conversation = require('../models/Conversation'); 
 const multer = require('multer');
 const path = require('path');
 
