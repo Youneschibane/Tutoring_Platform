@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const serviceMethods = require('../controllers/serviceController')
 const { protect, restrictTo } = require('../middleware/authMiddleware');
+const calendarMethods = require('../controllers/calendarController');
 
 
 router.get('/subjects'         ,protect , restrictTo('teacher') , serviceMethods.getProfSubjects);
@@ -13,7 +14,7 @@ router.put('/modifyService'    ,protect , restrictTo('teacher') , serviceMethods
 router.put('/modifySession'    ,protect , restrictTo('teacher') , serviceMethods.updateSession);
 router.delete('/deleteService' ,protect , restrictTo('teacher') , serviceMethods.deleteService);
 router.delete('/deleteSession' ,protect , restrictTo('teacher') , serviceMethods.deleteSession);
-
+router.get('/agenda', calendarMethods.getTeacherCalendar);
 
 
 module.exports = router;
