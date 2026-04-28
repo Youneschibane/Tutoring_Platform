@@ -1,15 +1,25 @@
+
 const multer  = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
 
+// ─────────────────────────────────────────────
+// CLOUDINARY CONFIG
+// ─────────────────────────────────────────────
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key:    process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// ── Storage général ───────────────────────────────────────────────────────────
-// upload.single('photo_profil') et upload.single('fichier') — inchangés
+// ─────────────────────────────────────────────
+// IMPORTANT RULE:
+// ALL FILES ARE PUBLIC (NO 401)
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// GENERAL STORAGE (PUBLIC FILES)
+// ─────────────────────────────────────────────
 const generalStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
@@ -17,21 +27,21 @@ const generalStorage = new CloudinaryStorage({
 
     if (file.fieldname === 'photo_profil') {
       folder = 'tutoring_platform/profiles';
-    } else if (file.fieldname === 'fichier') {
-      folder = 'tutoring_platform/documents';
     }
 
     return {
       folder,
-      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-      resource_type:   'auto',
-      public_id:       `${Date.now()}_${file.originalname.split('.')[0]}`
+      resource_type: 'auto', // supports image + pdf + doc
+      type: 'upload', //  PUBLIC ACCESS
+      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      public_id: `${Date.now()}_${file.originalname.split('.')[0]}`
     };
   }
 });
 
-// ── Storage signup teacher ────────────────────────────────────────────────────
-// photo_profil + cv + diplomes dans des dossiers séparés
+// ─────────────────────────────────────────────
+// TEACHER SIGNUP STORAGE
+// ─────────────────────────────────────────────
 const signupStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
@@ -39,47 +49,58 @@ const signupStorage = new CloudinaryStorage({
 
     if (file.fieldname === 'cv') {
       folder = 'tutoring_platform/teachers/cv';
-    } else if (file.fieldname === 'diplomes') {
+    }
+
+    if (file.fieldname === 'diplomes') {
       folder = 'tutoring_platform/teachers/diplomes';
     }
 
     return {
       folder,
-      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-      resource_type:   'auto',
-      public_id:       `${Date.now()}_${file.originalname.split('.')[0]}`
+      resource_type: 'auto', //  FIX: PDFs included
+      type: 'upload', //  PUBLIC ACCESS
+      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      public_id: `${Date.now()}_${file.originalname.split('.')[0]}`
     };
   }
 });
 
-// ── Storage diplôme individuel ────────────────────────────────────────────────
-// Utilisé pour l'ajout d'un diplôme après inscription
+// ─────────────────────────────────────────────
+// SINGLE DIPLOMA UPLOAD
+// ─────────────────────────────────────────────
 const diplomeStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     return {
-      folder:          'tutoring_platform/teachers/diplomes',
-      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-      resource_type:   'auto',
-      public_id:       `${Date.now()}_${file.originalname.split('.')[0]}`
+      folder: 'tutoring_platform/teachers/diplomes',
+      resource_type: 'auto', //  FIX PDF + IMAGE
+      type: 'upload', //  PUBLIC ACCESS
+      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      public_id: `${Date.now()}_${file.originalname.split('.')[0]}`
     };
   }
 });
 
-// ── Export principal ──────────────────────────────────────────────────────────
-// Toutes les routes existantes continuent à fonctionner SANS modification
+// ─────────────────────────────────────────────
+// MULTER EXPORT
+// ─────────────────────────────────────────────
 const upload = multer({ storage: generalStorage });
 
-// ── Named exports ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// TEACHER SIGNUP UPLOAD
+// ─────────────────────────────────────────────
 upload.uploadTeacherSignup = multer({ storage: signupStorage }).fields([
-  { name: 'photo_profil', maxCount: 1  },
-  { name: 'cv',           maxCount: 1  },
-  { name: 'diplomes',     maxCount: 10 }
+  { name: 'photo_profil', maxCount: 1 },
+  { name: 'cv', maxCount: 1 },
+  { name: 'diplomes', maxCount: 10 }
 ]);
 
+// ─────────────────────────────────────────────
+// DIPLOMA UPLOAD ONLY
+// ─────────────────────────────────────────────
 upload.uploadDiplome = multer({
   storage: diplomeStorage,
-  limits: { fieldSize: 10 * 1024 * 1024 } // 10 MB per field
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 }).single('diplome');
 
 module.exports = upload;

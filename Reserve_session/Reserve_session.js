@@ -7,26 +7,22 @@ const User = require('../models/userModel');
 // HELPER — Enrichir une séance avec l'état de suppression des participants
 // ═══════════════════════════════════════════════════════════════
 const enrichSessionWithDeletedStatus = async (session) => {
-  if (!session || !session.etudiants || session.etudiants.length === 0) {
-    // Si session est un objet Mongoose, on le convertit pour ajouter des propriétés
+  if (!session || !session.students || session.students.length === 0) {
     const sessionObj = session.toObject ? session.toObject() : session;
     return { ...sessionObj, participantsStatus: [] };
   }
 
-  const studentsIds = session.etudiants || [];
-  const students = await Eleve.find({ _id: { $in: studentsIds } });
-  
   const participantsStatus = [];
   
-  for (const student of students) {
-    const user = await User.findOne({ idmembre: student.id_eleve }).select('+isDeleted +deletedAt');
-    
+  for (const student of session.students) {
     participantsStatus.push({
-      studentId: student._id,
-      studentName: `${student.prenom} ${student.nom}`,
-      isDeleted: user ? user.isDeleted : false,
-      deletedAt: user ? user.deletedAt : null,
-      status: user && user.isDeleted ? 'permanently_deleted' : 'active'
+      userId: student.userId,
+      idmembre: student.idmembre,
+      firstname: student.snapshot?.firstname || 'Inconnu',
+      familyname: student.snapshot?.familyname || '',
+      isDeleted: student.isDeleted,
+      deletedAt: student.deletedAt,
+      status: student.isDeleted ? 'account_deleted' : 'active'
     });
   }
 
@@ -49,6 +45,8 @@ const bookSession = async (req, res) => {
     const numericIdEleve = id_eleve ? Number(id_eleve) : null;
 
     let studentToBook;
+    let userToEnroll;
+    
     if (type_compte === 'parent') {
       const parent = await Parent.findOne({ id_parent: numericIdCompte });
       if (!parent) return res.status(404).json({ message: 'Parent introuvable' });
@@ -60,38 +58,57 @@ const bookSession = async (req, res) => {
         (item) => item.student && item.student.toString() === studentToBook._id.toString()
       );
       if (!isChild) return res.status(403).json({ message: "L'élève n'est pas lié à ce parent" });
+
+      // Fetch the child's associated User by idmembre
+      userToEnroll = await User.findOne({ idmembre: numericIdEleve })
+        .select('firstname familyname role idmembre');
     } else {
       studentToBook = await Eleve.findOne({ id_eleve: numericIdCompte });
+      if (!studentToBook) return res.status(404).json({ message: 'Élève introuvable' });
+
+      // Fetch the student's associated User by idmembre
+      userToEnroll = await User.findOne({ idmembre: numericIdCompte })
+        .select('firstname familyname role idmembre');
     }
 
-    if (!studentToBook) return res.status(404).json({ message: 'Élève introuvable' });
+    if (!userToEnroll) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
-    const session = await Seance.findOneAndUpdate(
-      {
-        id_seance: numericIdSeance,
-        statut: { $in: ['libre', 'confirmee', 'reportee'] },
-        etudiants: { $ne: studentToBook._id }
-      },
-      { 
-        $push: { etudiants: studentToBook._id },
-        $set: { statut: 'confirmee' }
-      },
-      { new: true }
-    ).populate('service enseignant');
+    // Check if already enrolled
+    const seance = await Seance.findOne({ id_seance: Number(session_id) });
+    if (!seance) return res.status(404).json({ message: "Séance introuvable" });
 
-    if (!session) {
-      const check = await Seance.findOne({ id_seance: numericIdSeance });
-      if (!check) return res.status(404).json({ message: "Séance introuvable" });
-      
+    const alreadyEnrolled = seance.students.some(
+      s => s.userId.toString() === userToEnroll._id.toString() && !s.isDeleted
+    );
+    if (alreadyEnrolled) {
       return res.status(400).json({ 
-        message: "Inscription impossible (déjà inscrit ou séance complète)" 
+        message: "Élève déjà inscrit à cette séance" 
       });
     }
+
+    // Add student with snapshot
+    seance.students.push({
+      userId: userToEnroll._id,
+      idmembre: userToEnroll.idmembre,
+      snapshot: {
+        firstname: userToEnroll.firstname,
+        familyname: userToEnroll.familyname,
+        role: userToEnroll.role
+      },
+      joinedAt: new Date(),
+      isDeleted: false,
+      deletedAt: null
+    });
+
+    seance.statut = 'confirmee';
+    const updatedSeance = await seance.save();
+
+    const enrichedSeance = await enrichSessionWithDeletedStatus(updatedSeance);
 
     return res.status(201).json({
       status: 'success',
       message: 'Inscription réussie',
-      session: await enrichSessionWithDeletedStatus(session)
+      session: enrichedSeance
     });
 
   } catch (error) {
@@ -109,9 +126,13 @@ const getPastSessions = async (req, res) => {
     const student = await Eleve.findOne({ id_eleve });
     if (!student) return res.status(404).json({ message: 'Élève non trouvé' });
 
+    // Fetch the User associated with this student
+    const user = await User.findOne({ idmembre: id_eleve });
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
     const sessions = await Seance.find({
       statut: 'terminee',
-      etudiants: student._id,
+      'students.userId': user._id,
       date_seance: { $lt: new Date() }    
     })
     .populate('service', 'nom description')
@@ -141,10 +162,15 @@ const getUpcomingSessions = async (req, res) => {
     const student = await Eleve.findOne({ id_eleve });
     if (!student) return res.status(404).json({ message: 'Élève non trouvé' });
 
+    // Fetch the User associated with this student
+    const user = await User.findOne({ idmembre: id_eleve });
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
     const sessions = await Seance.find({
-      etudiants: student._id,
+      'students.userId': user._id,
       statut: { $in: ['confirmee', 'reportee'] },
-      date_seance: { $gte: new Date() }   
+      date_seance: { $gte: new Date() },
+      'archivedMeta.isArchived': { $ne: true }
     })
     .populate('service', 'nom description')
     .populate('enseignant', 'firstname familyname')
@@ -164,10 +190,57 @@ const getUpcomingSessions = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════
+// GET SESSION DETAIL WITH TEACHER STATUS
+// ═══════════════════════════════════════════════════════════════
+const getSessionDetail = async (req, res) => {
+  try {
+    const { id_seance } = req.params;
+    const numericIdSeance = Number(id_seance);
+
+    const seance = await Seance.findOne({ id_seance: numericIdSeance })
+      .populate('service', 'nom description type_service matiere')
+      .populate('enseignant', 'firstname familyname');
+
+    if (!seance) {
+      return res.status(404).json({ 
+        status: 'fail', 
+        message: 'Séance introuvable' 
+      });
+    }
+
+    // Determine teacher status based on archivedMeta
+    const teacherStatus = seance.archivedMeta?.isArchived 
+      ? 'no_longer_active' 
+      : 'active';
+
+    // Enrich with deleted student status
+    const enrichedSeance = await enrichSessionWithDeletedStatus(seance);
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        seance: enrichedSeance,
+        teacherStatus: teacherStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching session detail:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // UN SEUL EXPORT À LA FIN
+// ═══════════════════════════════════════════════════════════════
 module.exports = { 
   bookSession, 
   getPastSessions, 
-  getUpcomingSessions, 
+  getUpcomingSessions,
+  getSessionDetail,
   enrichSessionWithDeletedStatus 
 };

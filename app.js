@@ -52,12 +52,19 @@ app.set('trust proxy', 1);
 // =====================
 app.use(helmet());
 app.disable('x-powered-by');
+
 app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'] 
 }));
+
+// TRACKER: Log toutes les requêtes entrantes avant tout middleware
+app.use((req, res, next) => {
+  console.log(`\x1b[36m[INCOMING] ${req.method} ${req.url}\x1b[0m`);
+  next();
+});
 
 // =====================
 // BODY PARSING
@@ -72,37 +79,28 @@ app.use(cookieParser());
 app.use((req, res, next) => {
   const clean = (val) => {
     if (typeof val === 'string') {
-      // 1. Basic Mongo Sanitize : retire uniquement $ (opérateurs Mongo)
-      //    On ne retire PAS le point "." car il est légal dans les emails, URLs, etc.
       let s = val.replace(/\$/g, '');
-      // 2. XSS Sanitize
       return xss(s);
     }
     if (Array.isArray(val)) return val.map(clean);
     if (val !== null && typeof val === 'object') {
       const newObj = {};
       for (const key in val) {
-        newObj[key] = clean(val[key]);
+        if (Object.prototype.hasOwnProperty.call(val, key)) {
+          newObj[key] = clean(val[key]);
+        }
       }
       return newObj;
     }
     return val;
   };
 
-  // Sanitize Body
   if (req.body) req.body = clean(req.body);
-
-  // Sanitize Query (property-only update pour éviter le crash getter)
-  if (req.query) {
-    const cleanedQuery = clean(req.query);
-    Object.keys(req.query).forEach(key => delete req.query[key]);
-    Object.assign(req.query, cleanedQuery);
-  }
-
-  // Sanitize Params
+  if (req.query) Object.assign(req.query, clean(req.query));
   if (req.params) {
-    const cleanedParams = clean(req.params);
-    Object.assign(req.params, cleanedParams);
+    // TRACKER: Voir si Express a bien identifié l'ID
+    console.log('[DEBUG] Params reçus avant clean:', req.params);
+    Object.assign(req.params, clean(req.params));
   }
 
   next();
@@ -113,7 +111,7 @@ app.use(hpp());
 // =====================
 // LOGGING
 // =====================
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(morgan('dev'));
 
 // =====================
 // RATE LIMITING
@@ -143,7 +141,13 @@ app.use('/api/pack-profil', packProfilRoutes);
 app.use('/api/enfants', enfantRoutes);
 app.use('/api/teacher/diplomes', teacherDocumentRoutes);
 app.use('/api/teacher', teacherStatusRoutes);
-app.use('/api/admin/teachers', adminTeacherRoutes);
+
+// TRACKER: Log avant d'entrer dans les routes admin
+app.use('/api/admin/teachers', (req, res, next) => {
+    console.log(`[ADMIN-ROUTE] Accès à /api/admin/teachers avec méthode ${req.method}`);
+    next();
+}, adminTeacherRoutes);
+
 app.use('/api/admin/services', adminServiceRoutes);
 app.use('/api/admin/deletion', adminDeletionRoutes);
 
@@ -158,27 +162,14 @@ if (process.env.NODE_ENV !== 'production') {
 // 404 & ERROR HANDLING
 // =====================
 app.use((req, res) => {
+  // TRACKER: Route non trouvée
+  console.log(`\x1b[31m[404 NOT FOUND] ${req.method} ${req.url}\x1b[0m`);
   res.status(404).json({ status: 'fail', message: 'Route introuvable' });
 });
 
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${err.message}`);
-
-  // Mongoose Validation Error
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      status: 'fail',
-      message: Object.values(err.errors).map(e => e.message).join(', ')
-    });
-  }
-
-  // Duplicate Key Error
-  if (err.code === 11000) {
-    return res.status(400).json({
-      status: 'fail',
-      message: `${Object.keys(err.keyValue)[0]} déjà utilisé`
-    });
-  }
+  // TRACKER: Erreur critique
+  console.error(`\x1b[31m[CRITICAL ERROR]\x1b[0m`, err);
 
   res.status(err.status || 500).json({
     status: 'error',

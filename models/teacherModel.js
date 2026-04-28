@@ -1,5 +1,13 @@
 const mongoose = require('mongoose');
 
+// ─────────────────────────────
+// CYCLE HIERARCHY
+// ─────────────────────────────
+// Used by admin acceptance logic to resolve duplicate subjects
+// Primaire < Moyen < Lycée < Universitaire
+const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+module.exports.CYCLE_ORDER = CYCLE_ORDER;
+
 const teacherSchema = new mongoose.Schema({
 
   // ─────────────────────────────
@@ -76,17 +84,10 @@ const teacherSchema = new mongoose.Schema({
   },
 
   // ─────────────────────────────
-  // GEO LOCATION (UBER STYLE)
+  // GEO LOCATION
   // ─────────────────────────────
-  latitude: {
-    type: Number,
-    default: 0
-  },
-
-  longitude: {
-    type: Number,
-    default: 0
-  },
+  latitude:  { type: Number, default: 0 },
+  longitude: { type: Number, default: 0 },
 
   location: {
     type: {
@@ -103,85 +104,78 @@ const teacherSchema = new mongoose.Schema({
   // ─────────────────────────────
   // STATS
   // ─────────────────────────────
-  rating: {
-    type: Number,
-    default: 0
-  },
-
-  reviewsCount: {
-    type: Number,
-    default: 0
-  },
-
-  online: {
-    type: Boolean,
-    default: false
-  },
-
-  actif: {
-    type: Boolean,
-    default: true,
-    index: true
-  },
+  rating:       { type: Number,  default: 0    },
+  reviewsCount: { type: Number,  default: 0    },
+  online:       { type: Boolean, default: false },
+  actif:        { type: Boolean, default: true, index: true },
 
   // ─────────────────────────────
-  // MATIÈRES
+  // MATIÈRES ACCEPTÉES
   // ─────────────────────────────
   subjects: [
     {
-      name: {
-        type: String,
-        required: true
-      },
-      cycle: {
-        type: String,
-        required: true
-      }
+      name:  { type: String, required: true },
+      cycle: { type: String, required: true }
     }
   ],
 
   // ─────────────────────────────
-  // DOCUMENTS
+  // DOCUMENTS ACCEPTÉS
   // ─────────────────────────────
   documents: {
     cv: {
-      url: String,
-      publicId: String,
+      url:        String,
+      publicId:   String,
       uploadedAt: Date
     },
-
     diplomes: [
       {
-        url: { type: String, required: true },
-        publicId: { type: String, required: true },
-        nom: String,
-        uploadedAt: {
-          type: Date,
-          default: Date.now
-        }
+        url:        { type: String, required: true },
+        publicId:   { type: String, required: true },
+        nom:        String,
+        matiere:    String,
+        cycle:      String,
+        uploadedAt: { type: Date, default: Date.now }
       }
     ]
-  }
+  },
+
+  // ─────────────────────────────
+  // DIPLÔMES EN ATTENTE DE VALIDATION
+  // ─────────────────────────────
+  pending_diplomes: [
+    {
+      url:        { type: String, required: true },
+      publicId:   { type: String, required: true },
+      nom:        { type: String, default: 'Diplôme sans titre' },
+      matiere:    { type: String, required: true },
+      cycle:      {
+        type: String,
+        required: true,
+        enum: ['Primaire', 'Moyen', 'Lycée', 'Universitaire']
+      },
+      uploadedAt: { type: Date, default: Date.now }
+    }
+  ]
 
 }, {
   timestamps: true
 });
 
-
 // ─────────────────────────────
-// GEO INDEX (IMPORTANT)
+// INDEXES
 // ─────────────────────────────
 teacherSchema.index({ location: '2dsphere' });
 teacherSchema.index({ rating: -1 });
 teacherSchema.index({ acceptanceStatus: 1 });
-
+teacherSchema.index({ 'pending_diplomes.0': 1 }); // rapide pour filtrer teachers avec pending
 
 // ─────────────────────────────
-// AUTO GEO SYNC (SAFE VERSION)
+// AUTO GEO SYNC
 // ─────────────────────────────
 teacherSchema.pre('save', function () {
   if (
-    typeof this.latitude === 'number' &&
+    typeof this.latitude  === 'number' &&
     typeof this.longitude === 'number'
   ) {
     this.location = {
@@ -191,7 +185,5 @@ teacherSchema.pre('save', function () {
   }
 });
 
-
 const Teacher = mongoose.model('Teacher', teacherSchema);
-
 module.exports = Teacher;

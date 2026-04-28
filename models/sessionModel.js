@@ -23,14 +23,47 @@ const seanceSchema = new mongoose.Schema({
   titre : {
     type : String,
     required : true,
-  }
-  ,
+  },
 
-
-  etudiants: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "eleve"
-  }],
+  students: [
+    {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      idmembre: {
+        type: Number,
+        default: null
+      },
+      snapshot: {
+        firstname: {
+          type: String,
+          default: null
+        },
+        familyname: {
+          type: String,
+          default: null
+        },
+        role: {
+          type: String,
+          default: null
+        }
+      },
+      joinedAt: {
+        type: Date,
+        default: Date.now
+      },
+      isDeleted: {
+        type: Boolean,
+        default: false
+      },
+      deletedAt: {
+        type: Date,
+        default: null
+      }
+    }
+  ],
 
   date_seance: {
     type: Date,
@@ -80,6 +113,26 @@ const seanceSchema = new mongoose.Schema({
 
   notes_enseignant: {
     type: String
+  },
+
+  // ── archive metadata ────────────────────────
+  archivedMeta: {
+    isArchived: {
+      type: Boolean,
+      default: false
+    },
+    reason: {
+      type: String,
+      default: null
+    },
+    archivedAt: {
+      type: Date,
+      default: null
+    },
+    id_enseignant: {
+      type: Number,
+      default: null
+    }
   }
 
 }, { timestamps: true });
@@ -96,5 +149,12 @@ seanceSchema.pre("save", async function (next) {
   }
   next();
 });
+
+// ─────────────────────────────────────────────
+// INDEXES
+// ─────────────────────────────────────────────
+seanceSchema.index({ 'archivedMeta.isArchived': 1, enseignant: 1 });
+seanceSchema.index({ 'students.userId': 1 });
+seanceSchema.index({ 'students.isDeleted': 1 });
 
 module.exports = mongoose.model("Seance", seanceSchema);
