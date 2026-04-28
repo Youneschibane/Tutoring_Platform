@@ -2,6 +2,7 @@ const Teacher    = require('../models/teacherModel');
 const cloudinary = require('../Config/Cloudinaryconfig · JS');
 
 const VALID_CYCLES = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+const { notifyAdmin } = require('../controllers/notificationService');
 
 // ─────────────────────────────────────────────────────────────────
 // HELPER — Recalculer subjects après suppression d'un diplôme
