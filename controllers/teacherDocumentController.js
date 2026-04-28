@@ -80,6 +80,17 @@ exports.ajouterDiplome = async (req, res) => {
     });
     await teacher.save();
 
+    try {
+      await notifyAdmin(
+        "Nouvelle compétence à vérifier",
+        `Le professeur ${teacher.firstname} ${teacher.familyname} a soumis un nouveau diplôme (${matiere} - ${cycle}) pour validation.`,
+        "NEW_MODULE_DIPLOMA",
+        teacher._id // On passe l'ObjectId pour que l'admin puisse cliquer dessus
+      );
+    } catch (notifErr) {
+      console.error("Erreur notification Admin (Ajout Diplôme):", notifErr.message);
+    }
+
     const added = teacher.pending_diplomes[teacher.pending_diplomes.length - 1];
     return res.status(201).json({
       status:  'success',
