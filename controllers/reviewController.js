@@ -135,10 +135,10 @@ exports.getMyReviews = async (req, res) => {
     });
 
     res.status(200).json({
-      success: true,
-      stats: { averageRating: teacher?.rating, totalEvaluations: teacher?.reviewsCount },
-      reviews: reviewsWithNames,
-      distribution
+       success: true,
+       stats: { averageRating: teacher?.rating, totalEvaluations: teacher?.reviewsCount },
+       reviews: reviewsWithNames,
+       distribution
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
