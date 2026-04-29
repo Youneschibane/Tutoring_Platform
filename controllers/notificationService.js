@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 const AdminNotification = require('../models/AdminNotification');
-const Admin = require('../models/Admin');
+const Admin = require('../models/adminModel');
 
 exports.notifyAdmin = async (title, message, type, teacherId = null) => {
     try {
