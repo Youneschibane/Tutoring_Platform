@@ -684,6 +684,19 @@ const getSessionById = async (req, res) => {
   }
 };
 
+const getSessionById = async (req, res) => {
+  try {
+    const { id_seance } = req.query;
+    const session = await Session.findById(id_seance);
+    if (!session) return res.status(404).json({ status: 'fail', message: 'Séance introuvable.' });
+    res.status(200).json({ status: 'success', data: session });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+
+
 module.exports = {
   getProfSubjects,
   createService , 
