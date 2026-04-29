@@ -125,3 +125,31 @@ exports.deleteReport = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+// Détail d'un signalement
+exports.getReportById = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: 'Signalement introuvable.' });
+
+    const reporter = await User.findOne({ idmembre: report.reporterId });
+    const reported = await User.findOne({ idmembre: report.reportedUserId });
+
+    const evaluation = report.id_evaluation 
+      ? await Evaluation.findOne({ id_evaluation: report.id_evaluation })
+      : null;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        ...report.toObject(),
+        reporterName: reporter ? `${reporter.firstname} ${reporter.familyname}` : `#${report.reporterId}`,
+        reportedName: reported ? `${reported.firstname} ${reported.familyname}` : `#${report.reportedUserId}`,
+        commentaire: evaluation?.commentaire || null,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
