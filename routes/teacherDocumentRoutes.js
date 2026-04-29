@@ -12,7 +12,8 @@ const { protect, restrictTo } = require('../middleware/authMiddleware');
 const {
   ajouterDiplome,
   supprimerDiplome,
-  getMesDiplomes
+  getMesDiplomes,
+  supprimerPendingDiplome
 } = require('../controllers/teacherDocumentController');
 
 // ─────────────────────────────────────────────
@@ -61,6 +62,12 @@ router.delete('/:diplome_id',
   protect,
   restrictTo('teacher'),
   supprimerDiplome
+);
+
+router.delete('/pending/:diplome_id',
+  protect,
+  restrictTo('teacher'),
+  supprimerPendingDiplome
 );
 
 module.exports = router;

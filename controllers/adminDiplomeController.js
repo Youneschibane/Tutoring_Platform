@@ -1,6 +1,6 @@
 const Teacher  = require('../models/teacherModel');
 const User     = require('../models/userModel');
-const cloudinary = require('../Config/Cloudinaryconfig · JS');
+const cloudinary = require('../Config/cloudinaryConfig.js');
 
 // ─────────────────────────────────────────────────────────────────
 // CYCLE HIERARCHY

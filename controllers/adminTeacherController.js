@@ -6,6 +6,43 @@ const User = require('../models/userModel');
 const Document = require('../models/documentModel');
 const sendEmail = require('../utils/sendEmail');
 
+const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+
+const normalizeSubjectName = (subject) => (subject || '').trim();
+
+const mergeSubjectsFromDiplomas = (existingSubjects = [], diplomas = []) => {
+  const subjectsMap = new Map();
+
+  const addSubject = (name, cycle) => {
+    const trimmedName = normalizeSubjectName(name);
+    if (!trimmedName || !cycle) return;
+
+    const key = trimmedName.toLowerCase();
+    const current = subjectsMap.get(key);
+    const cycleRank = CYCLE_ORDER.indexOf(cycle);
+
+    if (!current) {
+      subjectsMap.set(key, { name: trimmedName, cycle });
+      return;
+    }
+
+    const currentRank = CYCLE_ORDER.indexOf(current.cycle);
+    if (cycleRank > currentRank) {
+      current.cycle = cycle;
+    }
+  };
+
+  existingSubjects.forEach((subject) => {
+    addSubject(subject.name, subject.cycle);
+  });
+
+  diplomas.forEach((diploma) => {
+    addSubject(diploma.matiere, diploma.cycle);
+  });
+
+  return Array.from(subjectsMap.values());
+};
+
 /**
  * getPendingTeachers
  * Récupère tous les enseignants en attente d'approbation
@@ -206,6 +243,19 @@ exports.getTeacherFullProfile = async (req, res) => {
     }
 
     // 4. Réponse propre
+    const pendingDocuments = [];
+    if (teacher.pending_diplomes?.length > 0) {
+      teacher.pending_diplomes.forEach((pending) => {
+        pendingDocuments.push({
+          type: 'pending_diplome',
+          nom: pending.nom,
+          subjects: pending.subjects || (pending.matiere && pending.cycle ? [{ matiere: pending.matiere, cycle: pending.cycle, status: 'pending' }] : []),
+          url: pending.url,
+          uploadedAt: pending.uploadedAt
+        });
+      });
+    }
+
     const response = {
       teacher: {
         id: teacher.id_enseignant,
@@ -232,11 +282,13 @@ exports.getTeacherFullProfile = async (req, res) => {
 
       stats: {
         documentsCount: documents.length,
+        pendingDocumentsCount: pendingDocuments.length,
         rating: teacher.rating,
         reviews: teacher.reviewsCount
       },
 
-      documents
+      documents,
+      pendingDocuments
     };
 
     return res.status(200).json({
@@ -268,19 +320,14 @@ exports.acceptTeacher = async (req, res) => {
     const { id } = req.params; // id_enseignant
     const adminId = req.user._id; // Admin qui fait l'action
 
-    // 1. Find and update teacher
-    const teacher = await Teacher.findOneAndUpdate(
-      { id_enseignant: parseInt(id) },
-      {
-        accepted: true,
-        acceptanceStatus: 'accepted',
-        rejectionReason: null,
-        reviewedAt: new Date(),
-        reviewedBy: adminId
-      },
-      { returnDocument: "after", runValidators: false }
-    );
+    if (!id) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'ID enseignant invalide'
+      });
+    }
 
+    const teacher = await Teacher.findOne({ id_enseignant: parseInt(id, 10) });
     if (!teacher) {
       return res.status(404).json({
         status: 'fail',
@@ -288,8 +335,15 @@ exports.acceptTeacher = async (req, res) => {
       });
     }
 
-    // 2. Get corresponding User to send email (fire-and-forget)
-    const user = await User.findOne({ idmembre: parseInt(id) });
+    teacher.accepted = true;
+    teacher.acceptanceStatus = 'accepted';
+    teacher.rejectionReason = null;
+    teacher.reviewedAt = new Date();
+    teacher.reviewedBy = adminId;
+
+    await teacher.save();
+
+    const user = await User.findOne({ idmembre: parseInt(id, 10) });
     if (user && user.email) {
       (async () => {
         try {
@@ -300,7 +354,6 @@ exports.acceptTeacher = async (req, res) => {
           });
         } catch (emailError) {
           console.error('Email notification failed:', emailError.message);
-          // Non-blocking — l'opération principal est déjà complétée
         }
       })();
     }
@@ -324,6 +377,112 @@ exports.acceptTeacher = async (req, res) => {
  * - Notifie l'enseignant par email avec raison du rejet (fire-and-forget)
  * Param: id_enseignant (Number, via URL)
  */
+exports.reviewTeacherDiplome = async (req, res) => {
+  try {
+    const { id, diplome_id } = req.params;
+    const { reviews } = req.body;
+
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Un tableau reviews est requis et doit contenir au moins un sujet.'
+      });
+    }
+
+    const teacher = await Teacher.findOne({ id_enseignant: parseInt(id, 10) });
+    if (!teacher) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Enseignant introuvable'
+      });
+    }
+
+    const pending = teacher.pending_diplomes.id(diplome_id);
+    if (!pending) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Diplôme en attente introuvable'
+      });
+    }
+
+    const pendingSubjects = Array.isArray(pending.subjects)
+      ? pending.subjects
+      : pending.matiere && pending.cycle
+        ? [{ matiere: pending.matiere, cycle: pending.cycle, status: 'pending' }]
+        : [];
+
+    const subjectStatusMap = new Map();
+    reviews.forEach((review) => {
+      if (!review?.matiere || !review?.status) return;
+      subjectStatusMap.set(review.matiere.trim().toLowerCase(), review.status.toLowerCase());
+    });
+
+    const acceptedSubjects = [];
+    const rejectedSubjects = [];
+    const remainingSubjects = [];
+
+    for (const subject of pendingSubjects) {
+      const matiereKey = subject.matiere.trim().toLowerCase();
+      const status = subjectStatusMap.get(matiereKey);
+
+      if (status === 'accepted') {
+        acceptedSubjects.push(subject);
+      } else if (status === 'rejected') {
+        rejectedSubjects.push(subject);
+      } else {
+        remainingSubjects.push(subject);
+      }
+    }
+
+    teacher.documents = teacher.documents || {};
+    teacher.documents.diplomes = teacher.documents.diplomes || [];
+
+    const alreadyAccepted = new Set(
+      teacher.documents.diplomes.map((d) => `${d.matiere?.trim().toLowerCase()}|${d.cycle}`)
+    );
+
+    for (const subject of acceptedSubjects) {
+      const subjectKey = `${subject.matiere.trim().toLowerCase()}|${subject.cycle}`;
+      if (!alreadyAccepted.has(subjectKey)) {
+        teacher.documents.diplomes.push({
+          url: pending.url,
+          publicId: pending.publicId,
+          nom: pending.nom,
+          matiere: subject.matiere,
+          cycle: subject.cycle,
+          uploadedAt: pending.uploadedAt || new Date()
+        });
+        alreadyAccepted.add(subjectKey);
+      }
+    }
+
+    teacher.subjects = mergeSubjectsFromDiplomas(teacher.subjects, teacher.documents.diplomes);
+
+    if (remainingSubjects.length === 0) {
+      teacher.pending_diplomes.pull(diplome_id);
+    } else {
+      pending.subjects = remainingSubjects;
+    }
+
+    await teacher.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Diplôme examiné avec succès.',
+      data: {
+        acceptedSubjects,
+        rejectedSubjects,
+        remainingSubjects,
+        teacherSubjects: teacher.subjects,
+        acceptedDiplomasCount: teacher.documents.diplomes.length
+      }
+    });
+  } catch (error) {
+    console.error('reviewTeacherDiplome error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 exports.rejectTeacher = async (req, res) => {
   try {
     const { id } = req.params; // id_enseignant

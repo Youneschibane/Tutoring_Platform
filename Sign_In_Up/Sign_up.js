@@ -6,7 +6,7 @@ const Admin   = require('../models/adminModel');
 const Device  = require('../models/deviceModel');
 const { notifyAdmin } = require('../controllers/notificationService');
 
-const cloudinary = require('../Config/Cloudinaryconfig · JS');
+const cloudinary = require('../Config/cloudinaryConfig.js');
 const getNextId  = require('../generateID/nextID');
 
 const mongoose = require('mongoose');

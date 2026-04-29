@@ -148,12 +148,21 @@ const teacherSchema = new mongoose.Schema({
       url:        { type: String, required: true },
       publicId:   { type: String, required: true },
       nom:        { type: String, default: 'Diplôme sans titre' },
-      matiere:    { type: String, required: true },
-      cycle:      {
-        type: String,
-        required: true,
-        enum: ['Primaire', 'Moyen', 'Lycée', 'Universitaire']
-      },
+      subjects: [
+        {
+          matiere: { type: String, required: true },
+          cycle: {
+            type: String,
+            required: true,
+            enum: ['Primaire', 'Moyen', 'Lycée', 'Universitaire']
+          },
+          status: {
+            type: String,
+            enum: ['pending', 'accepted', 'rejected'],
+            default: 'pending'
+          }
+        }
+      ],
       uploadedAt: { type: Date, default: Date.now }
     }
   ]

@@ -1,5 +1,5 @@
 const Teacher    = require('../models/teacherModel');
-const cloudinary = require('../Config/Cloudinaryconfig · JS');
+const cloudinary = require('../Config/cloudinaryConfig.js');
 
 const VALID_CYCLES = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
 const { notifyAdmin } = require('../controllers/notificationService');
@@ -9,6 +9,18 @@ const { notifyAdmin } = require('../controllers/notificationService');
 // Cas 1 : aucun diplôme restant pour cette matière → retirer de subjects
 // Cas 2 : diplômes restants → garder le cycle le plus élevé (downgrade)
 // ─────────────────────────────────────────────────────────────────
+const safeJSON = (value, errorMsg) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      throw new Error(errorMsg);
+    }
+  }
+  return value;
+};
+
 const recalculerSubjects = (diplomesRestants, subjects, matiereSuppr) => {
   const matiereLower = matiereSuppr.trim().toLowerCase();
 
@@ -48,24 +60,61 @@ exports.ajouterDiplome = async (req, res) => {
   let uploadedPublicId = null;
   try {
     if (!req.file) {
-      return res.status(400).json({ status: 'fail', message: "Aucun fichier reçu. Champ attendu: 'diplome'" });
+      return res.status(400).json({
+        status: 'fail',
+        message: "Aucun fichier reçu. Champ attendu : 'diplome' ou 'diplomes'"
+      });
     }
 
     uploadedPublicId  = req.file.filename;
     const fileUrl     = req.file.path;
-    const { matiere, cycle, nom } = req.body;
+    const { nom } = req.body;
 
-    if (!matiere?.trim()) {
+    let subjects = [];
+    let rawSubjects;
+
+    try {
+      rawSubjects = safeJSON(req.body.subjects, "Le champ 'subjects' doit contenir un tableau JSON valide.");
+    } catch (error) {
       await cloudinary.uploader.destroy(uploadedPublicId);
-      return res.status(400).json({ status: 'fail', message: "Le champ 'matiere' est obligatoire." });
+      return res.status(400).json({ status: 'fail', message: error.message });
     }
 
-    if (!cycle || !VALID_CYCLES.includes(cycle)) {
-      await cloudinary.uploader.destroy(uploadedPublicId);
-      return res.status(400).json({
-        status:  'fail',
-        message: `Le champ 'cycle' est obligatoire. Valeurs acceptées : ${VALID_CYCLES.join(', ')}`
-      });
+    if (Array.isArray(rawSubjects)) {
+      try {
+        subjects = rawSubjects.map((subject, index) => {
+          const matiere = subject?.matiere?.trim?.();
+          const cycle = subject?.cycle;
+
+          if (!matiere) {
+            throw new Error(`Le sujet à l'index ${index} doit contenir le champ 'matiere'.`);
+          }
+          if (!cycle || !VALID_CYCLES.includes(cycle)) {
+            throw new Error(`Le sujet '${matiere}' doit contenir un cycle valide. Valeurs acceptées : ${VALID_CYCLES.join(', ')}`);
+          }
+
+          return { matiere, cycle, status: 'pending' };
+        });
+      } catch (error) {
+        await cloudinary.uploader.destroy(uploadedPublicId);
+        return res.status(400).json({ status: 'fail', message: error.message });
+      }
+    }
+
+    if (subjects.length === 0) {
+      const { matiere, cycle } = req.body;
+      if (!matiere?.trim()) {
+        await cloudinary.uploader.destroy(uploadedPublicId);
+        return res.status(400).json({ status: 'fail', message: "Le champ 'matiere' est obligatoire si 'subjects' n'est pas fourni." });
+      }
+      if (!cycle || !VALID_CYCLES.includes(cycle)) {
+        await cloudinary.uploader.destroy(uploadedPublicId);
+        return res.status(400).json({
+          status:  'fail',
+          message: `Le champ 'cycle' est obligatoire. Valeurs acceptées : ${VALID_CYCLES.join(', ')}`
+        });
+      }
+      subjects.push({ matiere: matiere.trim(), cycle, status: 'pending' });
     }
 
     const teacher = await Teacher.findOne({ id_enseignant: req.user.idmembre });
@@ -75,9 +124,11 @@ exports.ajouterDiplome = async (req, res) => {
     }
 
     teacher.pending_diplomes.push({
-      url: fileUrl, publicId: uploadedPublicId,
+      url: fileUrl,
+      publicId: uploadedPublicId,
       nom: nom?.trim() || 'Diplôme sans titre',
-      matiere: matiere.trim(), cycle, uploadedAt: new Date()
+      subjects,
+      uploadedAt: new Date()
     });
     await teacher.save();
 

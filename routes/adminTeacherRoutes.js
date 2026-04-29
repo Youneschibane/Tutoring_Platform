@@ -6,7 +6,8 @@ const {
   getPendingTeachers,
   getTeacherFullProfile,
   acceptTeacher,
-  rejectTeacher
+  rejectTeacher,
+  reviewTeacherDiplome
 } = require('../controllers/adminTeacherController');
 
 // Récupère les enseignants en attente
@@ -20,5 +21,8 @@ router.post('/:id/accept', protect, restrictTo('admin'), acceptTeacher);
 
 // Rejeter un enseignant
 router.post('/:id/reject', protect, restrictTo('admin'), rejectTeacher);
+
+// Examiner un diplôme en attente par sujet
+router.post('/:id/diplomes/:diplome_id/review', protect, restrictTo('admin'), reviewTeacherDiplome);
 
 module.exports = router;
