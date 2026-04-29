@@ -15,6 +15,7 @@ router.put('/modifySession'    ,protect , restrictTo('teacher') , serviceMethods
 router.delete('/deleteService' ,protect , restrictTo('teacher') , serviceMethods.deleteService);
 router.delete('/deleteSession' ,protect , restrictTo('teacher') , serviceMethods.deleteSession);
 router.get('/agenda', calendarMethods.getTeacherCalendar);
+router.get('/seanceById', protect, restrictTo('teacher'), serviceMethods.getSessionById);
 
 
 module.exports = router;

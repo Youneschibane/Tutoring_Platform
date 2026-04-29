@@ -65,8 +65,8 @@ const getTeacherDashboard = async (req, res) => {
       Service.countDocuments({ id_enseignant: teacherId }),
       Devis.distinct('id_eleve', { id_enseignant: teacherId, statut: 'Accepte' }),
       Session.distinct('id_eleve', { id_enseignant: teacherId, statut: 'assuree' }),
-      Review.countDocuments({ id_enseignant: teacherId }),
-      Review.find({ id_enseignant: teacherId })
+      Review.countDocuments({ id_enseignant: teacherId , visible: true }),
+      Review.find({ id_enseignant: teacherId  , visible: true })
         .sort({ createdAt: -1 })
         .limit(5)
         .populate('id_participation', 'firstname lastname'),

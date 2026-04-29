@@ -9,6 +9,8 @@ const io = new Server(httpServer, {
   cors: { origin: '*' }
 });
 
+app.setupRoutes(io);
+
 app.set('io', io);
 
 io.on('connection', (socket) => {
