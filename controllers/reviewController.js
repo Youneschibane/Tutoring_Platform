@@ -108,3 +108,39 @@ exports.getTeacherReviews = async (req, res) => {
         res.status(500).json({ success: false, error: "Erreur : " + error.message });
     }
 };
+
+exports.getMyReviews = async (req, res) => {
+  try {
+    const profId = parseInt(req.params.id_enseignant);
+ 
+    const evaluations = await Evaluation.find({ id_enseignant: profId, visible: true })
+      .sort({ date_evaluation: -1 });
+
+    const teacher = await Teacher.findOne({ id_enseignant: profId }).select('rating reviewsCount');
+
+    const reviewsWithNames = await Promise.all(
+      evaluations.map(async (e) => {
+        const user = await User.findOne({ idmembre: e.id_eleve });
+        return {
+          ...e.toObject(),
+          nom_eleve: user ? `${user.firstname} ${user.familyname}` : `Élève ${e.id_eleve}`,
+        };
+      })
+    );
+
+    const distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
+    evaluations.forEach(e => {
+      const note = Math.round(e.note);
+      if(distribution[note] !== undefined) distribution[note]++;
+    });
+
+    res.status(200).json({
+      success: true,
+      stats: { averageRating: teacher?.rating, totalEvaluations: teacher?.reviewsCount },
+      reviews: reviewsWithNames,
+      distribution
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+};

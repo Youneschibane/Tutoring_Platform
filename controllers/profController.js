@@ -3,6 +3,7 @@ const Devis = require('../models/devisModel');
 const Review = require('../models/evaluation');
 const Session = require('../models/sessionModel');
 const Service = require('../models/serviceModel');
+const User = require('../models/userModel');
 
 const calculateTrend = (current, previous) => {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -66,10 +67,10 @@ const getTeacherDashboard = async (req, res) => {
       Devis.distinct('id_eleve', { id_enseignant: teacherId, statut: 'Accepte' }),
       Session.distinct('id_eleve', { id_enseignant: teacherId, statut: 'assuree' }),
       Review.countDocuments({ id_enseignant: teacherId }),
-      Review.find({ id_enseignant: teacherId })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('id_participation', 'firstname lastname'),
+
+        Review.find({ id_enseignant: teacherId })
+         .sort({ createdAt: -1 })
+          .limit(5),
       Devis.aggregate([
         { $match: { id_enseignant: teacherId, statut: 'Accepte' } },
         { $group: { _id: null, totalDurée: { $sum: '$duree_estimee' }, count: { $sum: 1 } } }
@@ -181,6 +182,16 @@ const getTeacherDashboard = async (req, res) => {
       month: monthNames[s._id.month - 1],
       count: s.count
     }));
+    // ajputer<*****************************************
+    const recentCommentsWithNames = await Promise.all(
+  recentComments.map(async (e) => {
+    const user = await User.findOne({ idmembre: e.id_eleve });
+    return {
+      ...e.toObject(),
+      nom_eleve: user ? `${user.firstname} ${user.familyname}` : 'Élève',
+    };
+  })
+);
 
     res.status(200).json({
       status: 'success',
@@ -204,7 +215,8 @@ const getTeacherDashboard = async (req, res) => {
           thisYear: sessionChartThisYear,   
           lastYear: sessionChartLastYear,   
         },
-        recentComments,
+        //recentComments,
+        recentComments: recentCommentsWithNames,
         todaySessions
       }
     });

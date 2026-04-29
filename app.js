@@ -19,15 +19,15 @@ const reportRoutes = require('./routes/reportRoutes.js');
 const reviewsRoutes = require('./routes/reviewRoutes');
 const statistic = require('./routes/profRoutes')
 
-const conversation = require('./routes/conversations');
-const mail = require('./routes/mails');
-const message = require('./routes/messages');
+//const conversation = require('./routes/conversations');
+//const mail = require('./routes/mails');
+//const message = require('./routes/messages');
 const app = express();
 
 
-app.use('/api/conversations' , conversation);
-app.use('/api/mail' , mail);
-app.use('api/messages' , message);
+//app.use('/api/conversations' , conversation);
+//app.use('/api/mails', mail);
+//app.use('/api/messages' , message);
 
 // need to remove it 
 app.use(express.static(__dirname));
@@ -75,9 +75,22 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/prof', statistic);
 
 
-app.use('api/report' , reportRoutes);
+//app.use('api/report' , reportRoutes);
 
-app.use('api/review' , reviewsRoutes);
+//app.use('api/review' , reviewsRoutes);
+
+app.use('/api/report', reportRoutes);
+app.use('/api/review', reviewsRoutes);
+
+//module.exports = app;
+module.exports = app;
+module.exports.setupRoutes = (io) => {
+  const conversation = require('./routes/conversations');
+  const mail = require('./routes/mails');
+  const message = require('./routes/messages');
+  app.use('/api/conversations', conversation);
+  app.use('/api/mails', mail(io));
+  app.use('/api/messages', message(io));
 
 
 // =====================
@@ -89,4 +102,5 @@ app.use((req, res) => {
   });
 });
 
-module.exports = app;
+
+};
