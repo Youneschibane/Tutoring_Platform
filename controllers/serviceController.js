@@ -4,8 +4,7 @@ const Session = require('../models/sessionModel');
 const Education = require('../models/educationModel');
 const mongoose = require('mongoose');
 const Device = require('../models/deviceModel');
-const sendPush = require('../utils/sendNotification');
-
+const sendPush = require('../utils/sendExpoPush');
 
 const getAllowedCycles = (mainCycle) => {
   const hierarchy = {
@@ -395,6 +394,51 @@ const updateService = async (req, res) => {
 
     await service.save();
 
+    try {
+  const sessions = await Session.find({
+    service: service._id,
+    statut: { $in: ["confirmee", "reportee"] }
+  });
+
+  const studentIds = [
+    ...new Set(
+      sessions.flatMap(s => s.etudiants.map(e => String(e)))
+    )
+  ];
+
+  if (studentIds.length > 0) {
+    // leurs devices
+    const devices = await Device.find({
+      userId: { $in: studentIds },
+      isActive: true,
+      deviceToken: /^ExponentPushToken/ 
+    });
+
+    const champsModifies = Object.keys(updates)
+      .filter(k => !['id_service', 'id_enseignant', '_id', 'date_creation'].includes(k))
+      .join(', ');
+
+    const notifTitle = 'Service modifié';
+    const notifBody = `Le service: "${service.titre || service.nom_service}" a été mis à jour${champsModifies ? ` (${champsModifies})` : ''}.`;
+
+    const pushPromises = devices.map(device =>
+      sendExpoPush(device.deviceToken, {
+        title: notifTitle,
+        body: notifBody,
+        url: '/services',
+        extra: { type: 'service_update', id_service: service.id_service }
+      }).catch(err => console.error('Push failed:', err.message))
+    );
+
+    await Promise.all(pushPromises);
+  } else {
+    console.log('Aucun étudiant inscrit');
+  }
+} catch (notifError) {
+  console.error('Erreur notification:', notifError.message);
+}
+
+
     res.status(200).json({
       status: "success",
       message: "Service mis à jour avec succès et contrôles de sécurité validés.",
@@ -409,7 +453,6 @@ const updateService = async (req, res) => {
     });
   }
 };
-
 
 const updateSession = async (req, res) => {
   try {
@@ -441,12 +484,12 @@ const updateSession = async (req, res) => {
       });
     }
 
-if (differenceMS < 0) {
-  return res.status(400).json({
-    status: "fail",
-    message: "Action impossible : Cette séance est déjà terminée ou en cours."
-  });
-}
+    if (differenceMS < 0) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Action impossible : Cette séance est déjà terminée ou en cours."
+      });
+    }
 
     if (updates.date_seance || updates.heure_debut || updates.heure_fin) {
       const d = updates.date_seance || seance.date_seance;
@@ -473,6 +516,43 @@ if (differenceMS < 0) {
 
     res.status(200).json({ status: "success", data: seance });
 
+    try {
+      if (seance.etudiants && seance.etudiants.length > 0) {
+
+        const studentDevicesArrays = await Promise.all(
+          seance.etudiants.map(studentObjectId =>
+            Device.find({ userId: studentObjectId, isActive: true })
+          )
+        );
+
+        const allDevices = studentDevicesArrays.flat();
+
+        if (allDevices.length > 0) {
+          let body = `Votre séance "${seance.titre}" a été modifiée`;
+          if (updates.date_seance) body = `Votre séance "${seance.titre}" a été reportée au ${updates.date_seance}`;
+          else if (updates.heure_debut) body = `Votre séance "${seance.titre}" a un nouvel horaire : ${updates.heure_debut} - ${updates.heure_fin || seance.heure_fin}`;
+          else if (updates.lieu) body = `Le lieu de votre séance "${seance.titre}" a changé : ${updates.lieu}`;
+          else if (updates.lien_visio) body = `Le lien de votre séance "${seance.titre}" a été mis à jour`;
+
+          const pushPromises = allDevices.map(device =>
+            sendExpoPush(device.deviceToken, {
+              title: 'Séance modifiée',
+              body,
+              url: '/sessions',
+              extra: { type: 'session_update', id_seance: seance.id_seance }
+            }).catch(err => {
+              console.error('Push failed for device:', device._id, err.message);
+            })
+          );
+
+          await Promise.all(pushPromises);
+        } else {
+          console.log('No devices found for students in this session');
+        }
+      }
+    } catch (pushErr) {
+      console.error('Notification block error:', pushErr.message);
+    }
   } catch (error) {
     res.status(400).json({ status: "fail", message: error.message });
   }
@@ -593,7 +673,16 @@ const deleteSession = async (req, res) => {
   }
 };
 
-
+const getSessionById = async (req, res) => {
+  try {
+    const { id_seance } = req.query;
+    const session = await Session.findById(id_seance);
+    if (!session) return res.status(404).json({ status: 'fail', message: 'Séance introuvable.' });
+    res.status(200).json({ status: 'success', data: session });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
 
 module.exports = {
   getProfSubjects,
@@ -605,4 +694,5 @@ module.exports = {
   updateSession, 
   deleteService,
   deleteSession,
+  getSessionById, 
 }

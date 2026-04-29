@@ -7,23 +7,21 @@ const geoip = require('geoip-lite');
 
 const handleDeviceDetection = async ({ user, req }) => {
   try {
-    // Get contact info from request
     const { email: contactEmail, phone: contactPhone } = req.body || {};
 
-    // Device token from headers or request body
-    let deviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
+    let deviceToken = req.headers['x-device-token']  || req.body?.deviceToken;
     const currentIP = req.ip;
     const userAgent = req.headers['user-agent'];
 
     // Parse device name
     const parser = new UAParser(userAgent);
-    const browser = parser.getBrowser().name || 'Unknown Browser';
-    const os = parser.getOS().name || 'Unknown OS';
+    const browser = parser.getBrowser().name  ||'Unknown Browser';
+    const os = parser.getOS().name  ||'Unknown OS';
     const deviceName = `${browser} on ${os}`;
 
     // Get location from IP
     const geo = geoip.lookup(currentIP);
-    const location = geo?.country || 'Unknown location';
+    const location = geo?.country  ||'Unknown location';
 
     let device = null;
     let isNewDevice = false;
@@ -52,14 +50,14 @@ const handleDeviceDetection = async ({ user, req }) => {
       });
 
       // Prepare notification
-      const contact = contactEmail || contactPhone || user.email;
-      const message = `
-Nouvelle connexion détectée :
+      const contact = contactEmail  || contactPhone || user.email;
+      const message = 
+`Nouvelle connexion détectée :
 
 📱 Appareil : ${deviceName}
 🌍 Localisation : ${location}
 🌐 IP : ${currentIP}
-      `;
+`      ;
 
       // Send notification safely
       if (contact) {

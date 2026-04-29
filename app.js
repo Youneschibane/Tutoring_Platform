@@ -79,6 +79,10 @@ app.use('api/report' , reportRoutes);
 
 app.use('api/review' , reviewsRoutes);
 
+app.setupRoutes = (io) => {
+  app.set('io', io);
+};
+
 
 // =====================
 // 404 HANDLER

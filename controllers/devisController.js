@@ -4,7 +4,8 @@ const Education = require('../models/educationModel');
 const Teacher = require('../models/teacherModel');
 const mongoose = require('mongoose');
 const Device = require('../models/deviceModel');
-const sendPush = require('../utils/sendNotification');
+const sendPush = require('../utils/sendExpoPush');
+const User = require('../models/userModel');
 
 
 const creerDevis = async (req, res) => {
@@ -22,14 +23,11 @@ const creerDevis = async (req, res) => {
 
     const id_eleve = req.user.idmembre; 
 
-    // On cherche si un devis identique est déjà "En_attente"
     const devisExistant = await Devis.findOne({
       id_eleve,
       id_enseignant,
       matiere,
       statut: "En_attente",
-      luprof: false, 
-      luEtud: true
     });
 
     if (devisExistant) {
@@ -55,7 +53,6 @@ const creerDevis = async (req, res) => {
       });
     }
 
-    // --- 4. CONTRÔLE RÉFÉRENTIEL ÉDUCATION ---
     const educationRef = await Education.findOne({
       cycle: niveau_scolaire,
       levelName: annee_scolaire 
@@ -68,7 +65,6 @@ const creerDevis = async (req, res) => {
       });
     }
 
-    // --- CRÉATION DU DEVIS ---
     const id_devis = await getNextId('devis');
 
     const nouveauDevis = new Devis({
@@ -94,28 +90,30 @@ const creerDevis = async (req, res) => {
       message: 'Demande de devis envoyée avec succès.',
       data: nouveauDevis
     });
+ const userEnseignant = await User.findOne({ idmembre: enseignant.id_enseignant });
 
-    const devices = await Device.find({
-      userId: enseignant._id,   
-      isActive: true
-    });
-
-
-    if (devices.length > 0) {
-const pushPromises = devices.map(device => {
-  return sendPush(device.deviceToken, {
-    title: ' Nouveau devis',
-    body: `Nouveau devis pour ${nouveauDevis.matiere} — ${budget_estime} DA`,
-    url: '/devis'
-  })
+if (!userEnseignant) {
+  return;
+}
+const devices = await Device.find({
+  userId: userEnseignant._id,
+  isActive: true
 });
 
-await Promise.all(pushPjhromises);
-console.log("All promises done");
-    }else {
-        console.log('No devices found — push not sent');
 
-    }
+if (devices.length > 0) {
+const pushPromises = devices.map(device => {
+  return sendExpoPush(device.deviceToken, {
+    title: 'Nouveau devis reçu !',
+    body: `Un élève a demandé un devis pour ${matiere}`,
+    url: '/devis',
+    extra: { type: 'devis' },
+  }).catch(err => console.error('Push failed:', err.message));
+});
+ await Promise.all(pushPromises);
+} else {
+  console.log('No devices found — push not sent');
+}
   } catch (error) {
  if (!res.headersSent) {
     res.status(500).json({ status: 'error', message: error.message });
@@ -164,7 +162,7 @@ const repondreDevis = async (req, res) => {
       return res.status(403).json({ message: "Interdit : Ce n'est pas votre devis." });
     }
 
-    devis.luprof = true;  // Le prof vient de le traiter
+    devis.luprof = true; 
     devis.luEtud = false;
 
     let notifTitle = '';
@@ -202,7 +200,6 @@ const repondreDevis = async (req, res) => {
 
     await devis.save();
 
-    // Send response immediately
     res.status(200).json({
       status: 'success',
       message: statut === 'En_attente'
@@ -211,8 +208,7 @@ const repondreDevis = async (req, res) => {
       data: devis
     });
 
-    // Notify the student — non-blocking
-    const eleve = await Student.findOne({ id_eleve: devis.id_eleve });
+    const eleve = await User.findOne({ idmembre : devis.id_eleve });
     if (eleve) {
       const devices = await Device.find({ userId: eleve._id, isActive: true });
 
@@ -260,7 +256,7 @@ const reponseFinaleEtudiant = async (req, res) => {
 
     await devis.save();
     res.status(200).json({ status: 'success', message: "Décision finale enregistrée.", data: devis });
-        const enseignant = await Teacher.findOne({ id_enseignant: devis.id_enseignant });
+        const enseignant = await User.findOne({ idmembre : devis.id_enseignant });
     if (enseignant) {
       const devices = await Device.find({ userId: enseignant._id, isActive: true });
 
