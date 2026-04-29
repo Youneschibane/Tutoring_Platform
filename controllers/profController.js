@@ -66,19 +66,11 @@ const getTeacherDashboard = async (req, res) => {
       Service.countDocuments({ id_enseignant: teacherId }),
       Devis.distinct('id_eleve', { id_enseignant: teacherId, statut: 'Accepte' }),
       Session.distinct('id_eleve', { id_enseignant: teacherId, statut: 'assuree' }),
-<<<<<<< HEAD
       Review.countDocuments({ id_enseignant: teacherId , visible: true }),
       Review.find({ id_enseignant: teacherId  , visible: true })
         .sort({ createdAt: -1 })
         .limit(5)
         .populate('id_participation', 'firstname lastname'),
-=======
-      Review.countDocuments({ id_enseignant: teacherId }),
-
-        Review.find({ id_enseignant: teacherId })
-         .sort({ createdAt: -1 })
-          .limit(5),
->>>>>>> origin/nina
       Devis.aggregate([
         { $match: { id_enseignant: teacherId, statut: 'Accepte' } },
         { $group: { _id: null, totalDurée: { $sum: '$duree_estimee' }, count: { $sum: 1 } } }
