@@ -3,7 +3,7 @@ const Device = require('../models/deviceModel');
 const revokeOtherDevices = async (req, res) => {
   try {
     // For native apps, expect current device token in header or body
-    const currentDeviceToken = req.headers['x-device-token'] || req.body?.deviceToken;
+    const currentDeviceToken = req.headers['x-device-token']  || req.body?.deviceToken;
 
     if (!currentDeviceToken) {
       return res.status(400).json({ message: 'Current device token required in x-device-token header or deviceToken body.' });
@@ -24,29 +24,38 @@ const revokeOtherDevices = async (req, res) => {
 };
 
 const deviceToken = async (req, res) => {
-  const { deviceToken } = req.body;
+  try {
+    const { deviceToken } = req.body;
 
-  await Device.findOneAndUpdate(
-    { 
-      $or: [
-        { deviceToken: deviceToken },
-        { userId: req.user._id, deviceToken: /^pending_/ } // ← remplace le pending
-      ]
-    },
-    {
-      userId: req.user._id,
-      deviceToken,
-      isActive: true,
-      lastUsed: new Date(),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      ipAddress: req.ip || 'Unknown',
-    },
-    { upsert: true, new: true }
-  );
+    if (!deviceToken) {
+      return res.status(400).json({ message: 'deviceToken est requis.' });
+    }
 
-  res.status(200).json({ message: 'Push token registered.' });
+    await Device.findOneAndUpdate(
+      { 
+        $or: [
+          { deviceToken: deviceToken },
+          { userId: req.user._id, deviceToken: /^pending_/ }
+        ]
+      },
+      {
+        userId: req.user._id,
+        deviceToken,
+        isActive: true,
+        lastUsed: new Date(),
+        userAgent: req.headers['user-agent'] || 'Unknown',
+        ipAddress: req.ip || 'Unknown',
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({ message: 'Push token registered.' });
+
+  } catch (error) {
+    console.error('deviceToken error:', error.message); // ✅ tu verras l'erreur exacte
+    res.status(500).json({ message: error.message });
+  }
 };
-
 
 module.exports = {
   revokeOtherDevices,

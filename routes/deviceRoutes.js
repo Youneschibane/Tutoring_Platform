@@ -7,7 +7,6 @@ const { revokeOtherDevices , deviceToken } = require('../controllers/deviceContr
 // Revoke all other devices except current one
 router.delete('/revoke-other-devices', protect ,revokeOtherDevices);
 
-router.post('/register-push', protect, deviceToken
-);
+router.post('/register-push', protect, deviceToken);
 
 module.exports = router;
