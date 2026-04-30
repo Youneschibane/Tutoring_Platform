@@ -52,7 +52,7 @@ const creerDevis = async (req, res) => {
     if (!estQualifie) {
       return res.status(400).json({
         status: 'fail',
-        message: 'Lenseignant ${enseignant.firstname} ne propose pas de cours de ${matiere}.'
+        message: `Lenseignant ${enseignant.firstname} ne propose pas de cours de ${matiere}.`
       });
     }
 
@@ -115,7 +115,7 @@ const pushPromises = devices.map(device => {
   console.log('📤 Token:', device.deviceToken);
   return sendExpoPush(device.deviceToken, {
     title: 'Nouveau devis reçu !',
-    body: 'Un élève a demandé un devis pour ${matiere}',
+    body: `Un élève a demandé un devis pour ${matiere}`,
     url: '/devis',
     extra: { type: 'devis' },
   }).catch(err => console.error('Push failed:', err.message));
