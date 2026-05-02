@@ -4,7 +4,7 @@ const Student = require('../models/studentModel');
 const Parent  = require('../models/parentModel');
 const Admin   = require('../models/adminModel');
 const Device  = require('../models/deviceModel');
-const { notifyAdmin } = require('../controllers/notificationService');
+const { notifyAdmin } = require('../controllers/NotificationAdmin');
 
 const cloudinary = require('../Config/cloudinaryConfig.js');
 const getNextId  = require('../generateID/nextID');
@@ -294,7 +294,7 @@ exports.completeProfile = async (req, res) => {
     await session.commitTransaction();
     if (role === 'teacher') {
         try {
-            const { notifyAdmin } = require('../services/notificationService');
+            const { notifyAdmin } = require('../controllers/NotificationAdmin');
             await notifyAdmin(
                 "Nouveau profil à valider",
                 `Le professeur ${firstname} ${familyname} vient de s'inscrire. Son CV et ses diplômes sont en attente de vérification.`,

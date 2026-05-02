@@ -28,6 +28,7 @@ const serviceRoutes = require('./routes/serviceRoutes');
 const documentRoutes = require('./routes/documentRoutes');
 const packProfilRoutes = require('./routes/packProfilRoutes');
 const adminDeletionRoutes = require('./routes/adminDeletionRoutes');
+const adminDiplomeRoutes = require('./routes/adminDiplomeRoutes');
 const adminTeacherRoutes = require('./routes/adminTeacherRoutes');
 const teacherStatusRoutes = require('./routes/teacherStatusRoutes');
 const adminServiceRoutes = require('./routes/adminServiceRoutes');
@@ -148,6 +149,7 @@ app.use('/api/admin/teachers', (req, res, next) => {
     next();
 }, adminTeacherRoutes);
 
+app.use('/api/admin/diplomes', adminDiplomeRoutes);
 app.use('/api/admin/services', adminServiceRoutes);
 app.use('/api/admin/deletion', adminDeletionRoutes);
 
