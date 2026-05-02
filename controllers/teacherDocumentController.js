@@ -2,7 +2,7 @@ const Teacher    = require('../models/teacherModel');
 const cloudinary = require('../Config/cloudinaryConfig.js');
 
 const VALID_CYCLES = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
-const { notifyAdmin } = require('../controllers/notificationService');
+const { notifyAdmin } = require('../controllers/NotificationAdmin');
 
 // ─────────────────────────────────────────────────────────────────
 // HELPER — Recalculer subjects après suppression d'un diplôme
@@ -156,6 +156,7 @@ exports.ajouterDiplome = async (req, res) => {
   }
 };
 
+
 // ═══════════════════════════════════════════════════════════════
 // SUPPRIMER UN DIPLÔME ACCEPTÉ
 // DELETE /api/teacher/diplomes/:diplome_id
@@ -231,6 +232,48 @@ exports.getMesDiplomes = async (req, res) => {
     return res.status(500).json({ status: 'error', message: "Impossible de récupérer les diplômes.", details: error.message });
   }
 };
+
+/*exmple de repense de getMesDiplomes pour statut=all
+{
+  "status": "success",
+  "statut": "all",
+  "data": {
+    "accepted": {
+      "count": 2,
+      "items": [
+        {
+          "publicId": "diplome_public_id",
+          "url": "https://cloudinary.com/diplome_public_id",
+          "matiere": "matiere", 
+          "cycle": "cycle",
+          "uploadedAt": "2024-01-01T00:00:00.000Z"
+        },
+        {
+          "publicId": "diplome_public_id_2",
+          "url": "https://cloudinary.com/diplome_public_id_2",
+          "matiere": "matiere2", 
+          "cycle": "cycle2",
+          "uploadedAt": "2024-01-01T00:00:00.000Z"
+        }
+      ] 
+    },  
+    "pending": {
+      "count": 1,
+      "items": [
+        {
+          "publicId": "diplome_public_id_3",
+          "url": "https://cloudinary.com/diplome_public_id_3",
+          "matiere": "matiere3", 
+          "cycle": "cycle3",
+          "uploadedAt": "2024-01-01T00:00:00.000Z"
+        }
+      ] 
+    },
+    "total": 3
+  }
+        }
+*/
+
 
 // ═══════════════════════════════════════════════════════════════
 // SUPPRIMER UN DIPLÔME EN ATTENTE (par le teacher)
