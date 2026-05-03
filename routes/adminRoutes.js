@@ -7,6 +7,7 @@ const { addSubject, removeSubject, getAllLevels , getOptions,getSubjects,getCycl
 const { getAllStudents, searchStudents, getAnneesByCycle } = require('../controllers/adminStudentController');
 const { getAllRules, addRule, deleteRule } = require('../controllers/adminRuleController');
 const adminCtrl = require('../controllers/adminController');
+const { getAllParents, searchParents } = require('../controllers/adminParentController');
 
 router.get('/students/annees/:cycle',  getAnneesByCycle); 
 router.get('/students',                getAllStudents);
@@ -42,6 +43,7 @@ router.patch ('/moderate/:id_evaluation', adminCtrl.moderateEvaluation);
 router.get   ('/inbox',                   adminCtrl.getAdminMailbox);
 router.delete('/reports/:id', adminCtrl.deleteReport);
 
-
+router.get('/parents', getAllParents);
+router.post('/parents/search', searchParents);
 
 module.exports = router;
