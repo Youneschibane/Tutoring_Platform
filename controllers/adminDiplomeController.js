@@ -385,7 +385,7 @@ exports.rejeterMatiere = async (req, res) => {
         : `Matière "${matiere}" (${cycle}) rejetée. ${matieres_restantes.length} matière(s) encore en attente.`,
       data: {
         rejected_subject:   { matiere, cycle },
-        reason:             reason || null,
+       
         diplome_supprime:   allRejected,
         cloudinary_deleted: cloudinaryDeleted,
         matieres_restantes
@@ -405,8 +405,9 @@ exports.rejeterMatiere = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════
 // 5. PATCH — Rejeter un diplôme entier (toutes ses matières d'un coup)
 // PATCH /api/admin/diplomes/reject-diplome/:id_enseignant/:diplome_id
-// Body: { reason?: String }
+
 // ═══════════════════════════════════════════════════════════════════════
+
 
 exports.rejeterDiplome = async (req, res) => {
   try {
@@ -453,7 +454,7 @@ exports.rejeterDiplome = async (req, res) => {
       message: `Diplôme "${rejectedInfo.nom}" rejeté et supprimé.`,
       data: {
         diplome_rejete:     rejectedInfo,
-        reason:             reason || null,
+     
         cloudinary_deleted: cloudinaryDeleted
       }
     });
