@@ -148,6 +148,49 @@ upload.uploadTeacherSignup = multer({
   { name: 'diplomes', maxCount: 10 }
 ]);
 
+// Living document upload for IA processing
+const livingDocumentStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: 'tutoring_platform/living_documents',
+    resource_type: getResourceType(file),
+    type: 'upload',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx'],
+    public_id: safePublicId(file.originalname)
+  })
+});
+
+const livingDocumentUploader = multer({
+  storage: livingDocumentStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: makeFileFilter({
+    living_document: ALL_MIMES,
+    document: ALL_MIMES,
+    '*': ALL_MIMES
+  })
+});
+
+upload.uploadLivingDocument = (req, res, next) => {
+  const middleware = livingDocumentUploader.fields([
+    { name: 'living_document', maxCount: 1 },
+    { name: 'document', maxCount: 1 }
+  ]);
+
+  middleware(req, res, (err) => {
+    if (err) return next(err);
+
+    if (!req.files || (!req.files.living_document && !req.files.document)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: "Aucun fichier envoyé. Utiliser le champ 'living_document' ou 'document'."
+      });
+    }
+
+    req.file = req.files.living_document ? req.files.living_document[0] : req.files.document[0];
+    next();
+  });
+};
+
 // Single diploma upload (accept both diplome and diplomes field names)
 const diplomeUploader = multer({
   storage: diplomeStorage,
