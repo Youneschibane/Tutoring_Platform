@@ -69,6 +69,16 @@ const userSchema = new mongoose.Schema({
 
 
 },
+banExpiresAt: {
+       type: Date,
+        default: null 
+      },
+    
+    isPermanentlyBanned: { 
+      type: Boolean,
+       default: false
+       },
+
     { timestamps: true },
 );
 
