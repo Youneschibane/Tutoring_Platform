@@ -307,31 +307,6 @@ const reponseFinaleEtudiant = async (req, res) => {
   }
 };
 
-const reponseFinaleEtudiant = async (req, res) => {
-  try {
-    const { action } = req.body; 
-    const devisId = parseInt(req.params.id);
-    const devis = await Devis.findOne({ id_devis: devisId });
-
-    if (!devis) return res.status(404).json({ message: "Devis non trouvé." });
-
-    if (devis.statut !== "En_attente") {
-      return res.status(400).json({ message: "Le statut final a déjà été décidé par le professeur." });
-    }
-
-    devis.statut = action === 'Accepte' ? 'Accepte' : 'Refuse';
-    devis.date_reponse_Etudiant = Date.now();
-    
-    devis.luEtud = true;
-    devis.luprof = false; 
-
-    await devis.save();
-    res.status(200).json({ status: 'success', message: "Décision finale enregistrée.", data: devis });
-  } catch (error) {
-    res.status(500).json({ status: 'fail', message: error.message });
-  }
-};
-
 module.exports = {
   creerDevis, 
   getMesDevis,
