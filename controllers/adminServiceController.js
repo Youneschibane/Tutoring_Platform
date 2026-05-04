@@ -3,6 +3,7 @@ const Teacher = require('../models/teacherModel');
 const User = require('../models/userModel');
 const axios = require('axios');
 const Education = require('../models/educationModel'); 
+const { sendEmail } = require('../utils/sendEmail');
 
 
 const DEFAULT_PAGE  = 1;
@@ -278,4 +279,175 @@ const getAllSubjects = async (req, res) => {
   }
 };
 
-module.exports = { getAllServices, searchServices , getAllSubjects };
+
+const suspendreService = async (req, res) => {
+  try {
+    const { id_service } = req.params;
+    
+
+  
+
+    const service = await Service.findOne({ id_service: Number(id_service) });
+    if (!service) {
+      return res.status(404).json({ status: 'fail', message: "Service introuvable." });
+    }
+
+    if (service.isDeleted) {
+      return res.status(400).json({ status: 'fail', message: "Ce service a déjà été supprimé." });
+    }
+
+    if (service.suspendu) {
+      return res.status(400).json({ status: 'fail', message: "Ce service est déjà suspendu." });
+    }
+
+    const updatedService = await Service.findOneAndUpdate(
+      { id_service: Number(id_service) },
+      {
+        suspendu:         true,
+        suspendedAt:      new Date(),
+        suspendedBy:      req.user._id,
+        
+        actif:            false   // désactiver aussi le service
+      },
+      { returnDocument: "after" }
+    );
+
+    // Notifier le teacher — fire and forget
+    (async () => {
+      try {
+        const teacher = await User.findOne({ idmembre: service.id_enseignant });
+        if (teacher?.email) {
+          await sendEmail({
+            email:   teacher.email,
+            subject: "⚠️ Votre service a été suspendu",
+            message: `Votre service "${service.nom_service}" a été suspendu par l'administration.\n\nVeuillez contacter le support pour plus d'informations.`
+          });
+        }
+      } catch (e) {
+        console.error('Email notification error:', e.message);
+      }
+    })();
+
+    return res.status(200).json({
+      status:  'success',
+      message: "Service suspendu avec succès.",
+      data:    updatedService
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+const reactiverService = async (req, res) => {
+  try {
+    const { id_service } = req.params;
+
+    const service = await Service.findOne({ id_service: Number(id_service) });
+    if (!service) {
+      return res.status(404).json({ status: 'fail', message: "Service introuvable." });
+    }
+
+    if (service.isDeleted) {
+      return res.status(400).json({ status: 'fail', message: "Ce service a été supprimé et ne peut pas être réactivé." });
+    }
+
+    if (!service.suspendu) {
+      return res.status(400).json({ status: 'fail', message: "Ce service n'est pas suspendu." });
+    }
+
+    const updatedService = await Service.findOneAndUpdate(
+      { id_service: Number(id_service) },
+      {
+        suspendu:         false,
+        suspendedAt:      null,
+        suspendedBy:      null,
+        suspensionReason: null,
+        actif:            true
+      },
+      { returnDocument: "after" }
+    );
+
+    // Notifier le teacher — fire and forget
+    (async () => {
+      try {
+        const teacher = await User.findOne({ idmembre: service.id_enseignant });
+        if (teacher?.email) {
+          await sendEmail({
+            email:   teacher.email,
+            subject: "✅ Votre service a été réactivé",
+            message: `Votre service "${service.nom_service}" a été réactivé par l'administration. Il est maintenant visible aux étudiants.`
+          });
+        }
+      } catch (e) {
+        console.error('Email notification error:', e.message);
+      }
+    })();
+
+    return res.status(200).json({
+      status:  'success',
+      message: "Service réactivé avec succès.",
+      data:    updatedService
+    });
+
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+const supprimerService = async (req, res) => {
+  try {
+    const { id_service } = req.params;
+   
+
+
+    const service = await Service.findOne({ id_service: Number(id_service) });
+    if (!service) {
+      return res.status(404).json({ status: 'fail', message: "Service introuvable." });
+    }
+
+    if (service.isDeleted) {
+      return res.status(400).json({ status: 'fail', message: "Ce service est déjà supprimé." });
+    }
+
+    await Service.findOneAndUpdate(
+      { id_service: Number(id_service) },
+      {
+        isDeleted: true,
+        actif:     false,
+        suspendu:  false
+      }
+    );
+
+    // Notifier le teacher — fire and forget
+    (async () => {
+      try {
+        const teacher = await User.findOne({ idmembre: service.id_enseignant });
+        if (teacher?.email) {
+          await sendEmail({
+            email:   teacher.email,
+            subject: "❌ Votre service a été supprimé",
+            message: `Votre service "${service.nom_service}" a été supprimé par l'administration.\n\nVeuillez contacter le support pour plus d'informations.`
+          });
+        }
+      } catch (e) {
+        console.error('Email notification error:', e.message);
+      }
+    })();
+
+    return res.status(200).json({
+      status:  'success',
+      message: "Service supprimé avec succès."
+    });
+
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+
+
+module.exports = { getAllServices, searchServices , getAllSubjects , suspendreService,
+  reactiverService,
+  supprimerService};

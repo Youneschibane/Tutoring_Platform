@@ -3,15 +3,17 @@ const mongoose = require('mongoose');
 const app = require('./app');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const { initializeCronJobs, stopCronJobs } = require('./utils/cronService');
+
+// ── If you have a cron file, import it here ──
+ //const { initializeCronJobs, stopCronJobs } = require('./utils/cronJobs');
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*' }
 });
-app.setupRoutes(io);
 
-app.setupRoutes(io);
-
+app.setupRoutes(io);  
 app.set('io', io);
 
 io.on('connection', (socket) => {
@@ -22,9 +24,7 @@ io.on('connection', (socket) => {
     console.log(`User ${userId} joined room`);
   });
 
-  // Send message
   socket.on('sendMessage', (data) => {
-    // data = { from, to, message, conversationId }
     io.to(`user_${data.to}`).emit('newMessage', data);
   });
 
@@ -36,45 +36,29 @@ io.on('connection', (socket) => {
 const mongoURI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 3000;
 
-// 1. Démarrer le serveur IMMÉDIATEMENT
-// Cela évite que Render ne "timeout" en attendant la base de données
 const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server is running on port ${PORT}`);
-    
-    // 2. Connexion à MongoDB après le démarrage du serveur
     console.log('Connecting to MongoDB...');
     mongoose.connect(mongoURI)
         .then(() => {
             console.log('✓ MongoDB connected');
-            
-            // 3. Initialiser les tâches de fond une fois la DB connectée
-            console.log('Initializing background jobs...');
-            try {
-                initializeCronJobs();
-                console.log('✓ Background jobs initialized successfully\n');
-            } catch (error) {
-                console.error('⚠️ Failed to initialize background jobs:', error.message);
-            }
+            // initializeCronJobs();
+            //console.log('✓ Background jobs initialized');
         })
         .catch(err => {
             console.error('❌ MongoDB connection error:', err);
-            // On ne coupe pas forcément le serveur ici, 
-            // pour permettre à l'admin de voir les logs.
         });
 });
 
-// --- Gestion propre de la fermeture (Graceful Shutdown) ---
-const handleShutdown = (signal) => {
+const handleShutdown = async (signal) => {
     console.log(`\n📍 ${signal} received, shutting down gracefully...`);
     stopCronJobs();
-    server.close(() => {
+    server.close(async () => {
         console.log('✓ Server closed');
-        mongoose.connection.close(false, () => {
-            console.log('✓ MongoDB connection closed');
-            process.exit(0);
-        });
+        await mongoose.connection.close();
+        console.log('✓ MongoDB connection closed');
+        process.exit(0);
     });
 };
-
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGINT',  () => handleShutdown('SIGINT'));
