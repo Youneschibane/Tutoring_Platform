@@ -4,6 +4,8 @@ const serviceMethods = require('../controllers/serviceController')
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const calendarMethods = require('../controllers/calendarController');
 
+// Get subjects - teacher only
+router.get('/subjects', protect, restrictTo('teacher'), serviceMethods.getProfSubjects);
 
 router.get('/subjects'         ,protect , restrictTo('teacher') , serviceMethods.getProfSubjects);
 router.post('/create'          ,protect , restrictTo('teacher') ,  serviceMethods.createService);
@@ -17,5 +19,7 @@ router.delete('/deleteSession' ,protect , restrictTo('teacher') , serviceMethods
 router.get('/agenda', calendarMethods.getTeacherCalendar);
 router.get('/seanceById', protect, restrictTo('teacher'), serviceMethods.getSessionById);
 
+// Delete session - teacher only
+router.post('/deleteSession', protect, restrictTo('teacher'), serviceMethods.deleteSession);
 
 module.exports = router;

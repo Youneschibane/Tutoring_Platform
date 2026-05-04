@@ -5,7 +5,6 @@ const {
   getTeachersWithPendingDiplomes,
   getPendingDiplomesOfTeacher,
   accepterDiplome,
-  rejeterMatiere,
   rejeterDiplome
 } = require('../controllers/adminDiplomeController');
 
@@ -24,12 +23,9 @@ router.patch('/accept/:id_enseignant/:diplome_id',
   accepterDiplome
 );
 
-
-router.patch('/reject/:id_enseignant/:diplome_id',
-  protect, restrictTo('admin'), rejeterMatiere); 
-
-
-
-router.patch('/reject-diplome/:id_enseignant/:diplome_id', rejeterDiplome);
+router.delete('/reject/:id_enseignant/:diplome_id',
+  protect, restrictTo('admin'),
+  rejeterDiplome
+);
 
 module.exports = router;

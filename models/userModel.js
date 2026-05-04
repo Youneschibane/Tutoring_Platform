@@ -56,19 +56,64 @@ const userSchema = new mongoose.Schema({
         default: 'user',
     },
 
-    accepted: {
-        type: Boolean,
-        default: false,
-    },
+ 
 
     postaladr: {
         type: Number,
         required: true,
     },
-    profilePic: { type: String, default: "" }
 
+    isActive: {
+        type: Boolean,
+        default: true
+    },
 
+    deletionScheduledAt: {
+        type: Date,
+        default: null,
+        select: false
+    },
+
+    passwordChangedAt: {
+        type: Date,
+        select: false
+    },
+
+    // Photo de profil - for all user types
+    photo_profil: {
+        type: String,
+        default: null
+    },
+
+loggedOutAt: {
+  type: Date,
+  default: null,
+  select: false
 },
+
+// ─────────────────────────────────────────────────
+// SOFT DELETE FIELDS (Compte supprimé)
+// ─────────────────────────────────────────────────
+isDeleted: {
+  type: Boolean,
+  default: false,
+  select: false,
+  index: true
+},
+
+deletedAt: {
+  type: Date,
+  default: null,
+  select: false
+},
+
+deletionReason: {
+  type: String,
+  default: null,
+  select: false
+}
+
+,
 banExpiresAt: {
        type: Date,
         default: null 
@@ -77,7 +122,7 @@ banExpiresAt: {
     isPermanentlyBanned: { 
       type: Boolean,
        default: false
-       },
+       }},
 
     { timestamps: true },
 );
@@ -101,7 +146,7 @@ userSchema.pre('save', async function () {
 userSchema.methods.comparePassword = async function (password) {
     return await bcrypt.compare(password, this.password);
 };
-
+userSchema.index({ firstname: 'text', familyname: 'text' }); // recherche sur nom du prof
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;
