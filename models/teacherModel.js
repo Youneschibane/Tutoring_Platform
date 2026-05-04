@@ -1,56 +1,69 @@
 const mongoose = require('mongoose');
 
-const enseignantSchema = new mongoose.Schema({
+// ─────────────────────────────
+// CYCLE HIERARCHY
+// ─────────────────────────────
+// Used by admin acceptance logic to resolve duplicate subjects
+// Primaire < Moyen < Lycée < Universitaire
+const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+module.exports.CYCLE_ORDER = CYCLE_ORDER;
 
+const teacherSchema = new mongoose.Schema({
+
+  // ─────────────────────────────
+  // IDENTIFIANT
+  // ─────────────────────────────
   id_enseignant: {
     type: Number,
-    required: true
+    required: true,
+    unique: true,
+    index: true
   },
 
-  // ── Acceptation par l'admin ──────────────────────────────────────────────
-  // false par défaut : le teacher ne peut rien faire tant que l'admin n'accepte pas
+  // ─────────────────────────────
+  // ACCEPTATION ADMIN
+  // ─────────────────────────────
   accepted: {
     type: Boolean,
     default: false,
-    required: true
+    index: true
   },
 
-  // ── Photo de profil ──────────────────────────────────────────────────────
-  
-  photo_profil: {
+  acceptanceStatus: {
+    type: String,
+    enum: ['pending', 'accepted', 'rejected'],
+    default: 'pending'
+  },
+
+  rejectionReason: {
     type: String,
     default: null
   },
 
+  reviewedAt: {
+    type: Date,
+    default: null
+  },
+
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+
+  // ─────────────────────────────
+  // PROFIL PROF
+  // ─────────────────────────────
   nature: {
     type: String,
+    enum: ['Independent', 'Etablissement', 'Centre'],
     required: true,
-    enum: ["Independant", "Etablissement", "Centre"]
+    index: true
   },
 
-  // ── Localisation (lat/lng séparés + GeoJSON pour recherche 2dsphere) ─────
-  latitude: {
-    type: Number,
+  description_pedagogique: {
+    type: String,
     required: true
-  },
-
-  longitude: {
-    type: Number,
-    required: true
-  },
-
-  // Champ GeoJSON généré automatiquement pour l'index 2dsphere
-  // FIX: le schéma original indexait 'location' qui n'existait pas
-  location: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
-    },
-    coordinates: {
-      type: [Number], // [longitude, latitude]
-      default: [0, 0]
-    }
   },
 
   deplacement: {
@@ -60,32 +73,14 @@ const enseignantSchema = new mongoose.Schema({
 
   rayon_deplacement: {
     type: Number,
-    required: true
-  },
-
-  description_pedagogique: {
-    type: String,
-    required: true
-  },
-
-  certifications: {
-    type: String,
-    required: true
-  },
-
-  actif: {
-    type: Boolean,
-    required: true
-  },
-
-  rating: {
-    type: Number,
+    required: true,
     default: 0
   },
 
-  reviewsCount: {
-    type: Number,
-    default: 0
+  modalite: {
+    type: String,
+    enum: ['En ligne', 'En présentiel', 'Hybride'],
+    default: 'En ligne'
   },
 
   online: {
@@ -95,35 +90,116 @@ const enseignantSchema = new mongoose.Schema({
     
   
   reviewsCount: { type: Number, default: 0 },
+  // ─────────────────────────────
+  // GEO LOCATION
+  // ─────────────────────────────
+  latitude:  { type: Number, default: 0 },
+  longitude: { type: Number, default: 0 },
 
-  subjects: [{
-    name: {
+  location: {
+    type: {
       type: String,
-      required: true
+      enum: ['Point'],
+      default: 'Point'
     },
-    cycle: {
-      type: String,
-      required: true
+    coordinates: {
+      type: [Number], // [lng, lat]
+      default: [0, 0]
     }
-  }]
+  },
 
+  // ─────────────────────────────
+  // STATS
+  // ─────────────────────────────
+  rating:       { type: Number,  default: 0    },
+  reviewsCount: { type: Number,  default: 0    },
+  online:       { type: Boolean, default: false },
+  actif:        { type: Boolean, default: true, index: true },
+
+  // ─────────────────────────────
+  // MATIÈRES ACCEPTÉES
+  // ─────────────────────────────
+  subjects: [
+    {
+      name:  { type: String, required: true },
+      cycle: { type: String, required: true }
+    }
+  ],
+
+  // ─────────────────────────────
+  // DOCUMENTS ACCEPTÉS
+  // ─────────────────────────────
+  documents: {
+    cv: {
+      url:        String,
+      publicId:   String,
+      uploadedAt: Date
+    },
+    diplomes: [
+      {
+        url:        { type: String, required: true },
+        publicId:   { type: String, required: true },
+        nom:        String,
+        matiere:    String,
+        cycle:      String,
+        uploadedAt: { type: Date, default: Date.now }
+      }
+    ]
+  },
+
+  // ─────────────────────────────
+  // DIPLÔMES EN ATTENTE DE VALIDATION
+  // ─────────────────────────────
+  pending_diplomes: [
+    {
+      url:        { type: String, required: true },
+      publicId:   { type: String, required: true },
+      nom:        { type: String, default: 'Diplôme sans titre' },
+      subjects: [
+        {
+          matiere: { type: String, required: true },
+          cycle: {
+            type: String,
+            required: true,
+            enum: ['Primaire', 'Moyen', 'Lycée', 'Universitaire']
+          },
+          status: {
+            type: String,
+            enum: ['pending', 'accepted', 'rejected'],
+            default: 'pending'
+          }
+        }
+      ],
+      uploadedAt: { type: Date, default: Date.now }
+    }
+  ]
+
+}, {
+  timestamps: true
 });
 
-// ── Synchroniser location GeoJSON depuis latitude/longitude avant save ──────
-enseignantSchema.pre('save', function (next) {
-  if (this.latitude != null && this.longitude != null) {
+// ─────────────────────────────
+// INDEXES
+// ─────────────────────────────
+teacherSchema.index({ location: '2dsphere' });
+teacherSchema.index({ rating: -1 });
+teacherSchema.index({ acceptanceStatus: 1 });
+teacherSchema.index({ 'pending_diplomes.0': 1 }); // rapide pour filtrer teachers avec pending
+
+// ─────────────────────────────
+// AUTO GEO SYNC
+// ─────────────────────────────
+teacherSchema.pre('save', function () {
+  if (
+    typeof this.latitude  === 'number' &&
+    typeof this.longitude === 'number'
+  ) {
     this.location = {
       type: 'Point',
       coordinates: [this.longitude, this.latitude]
     };
   }
-  next();
 });
 
-// ── Index 2dsphere sur le vrai champ GeoJSON ─────────────────────────────────
-enseignantSchema.index({ location: '2dsphere' });
-enseignantSchema.index({ rating: -1 });
-
-const Teacher = mongoose.model('Teacher', enseignantSchema);
-
+const Teacher = mongoose.model('Teacher', teacherSchema);
 module.exports = Teacher;

@@ -37,7 +37,9 @@ yearOfStudy:{
    
   },
 
-
+speciality:{
+    type:String,
+}
 
 
 })

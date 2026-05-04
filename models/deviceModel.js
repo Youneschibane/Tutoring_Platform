@@ -11,6 +11,11 @@ const deviceSchema = new mongoose.Schema({
         required: true,
         unique: true,
     },
+    // 👇 LE CHAMP MANQUANT EST ICI 👇
+    jwtToken: {
+        type: String,
+        default: null,
+    },
     userAgent: {
         type: String,
         trim: true,

@@ -4,7 +4,7 @@ async function getNextId(name) {
   const counter = await Counter.findByIdAndUpdate(
     name,
     { $inc: { seq: 1 } },   // increment by 1
-    { new: true, upsert: true } // create if doesn't exist
+    { returnDocument: "after", upsert: true } // create if doesn't exist
   );
   return counter.seq;
 }

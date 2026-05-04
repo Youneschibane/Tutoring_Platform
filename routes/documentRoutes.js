@@ -1,17 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-
 const upload = require('../middleware/upload');
+const { protect } = require('../middleware/authMiddleware');
 const { isTeacherAccepted } = require('../Sign_In_Up/Sign_up');
 
 // On ajoute les accolades ici pour extraire la fonction de l'objet exporté
 const { addDocument } = require('../gestionDuDocument/addDocument');
 const { getStudentDocuments } = require('../gestionDuDocument/getStudentDocument');
 
-
-
-router.post('/add', isTeacherAccepted, upload.single('fichier'), addDocument);
+// Protected route - students request documents using POST
+router.post('/get-documents', protect, getStudentDocuments);
 /*
   #swagger.tags = ['Documents']
   #swagger.summary = 'Ajouter un document'

@@ -5,6 +5,9 @@ const Education = require('../models/educationModel');
 const mongoose = require('mongoose');
 const Device = require('../models/deviceModel');
 const sendPush = require('../utils/sendExpoPush');
+const multer = require('multer');
+const storage = require('../Config/uploadMiddleware');
+const upload = multer({ storage: storage });
 
 const getAllowedCycles = (mainCycle) => {
   const hierarchy = {

@@ -260,7 +260,11 @@ const searchServices = async (req, res) => {
     }
 
     // Build dynamic filters
-    const serviceQuery = { actif: true };
+   const serviceQuery = {
+  actif:     true,
+  suspendu:  false,   // ← exclure les suspendus
+  isDeleted: false    // ← exclure les supprimés
+};
     const teacherQuery = {};
     const userQuery = {};
 
