@@ -675,6 +675,61 @@ const deleteSession = async (req, res) => {
   }
 };
 
+const deleteSession = async (req, res) => {
+  try {
+    const { id_seance } = req.query;
+    const { motif_annulation } = req.body;
+    const id_enseignant_auth = req.user.idmembre; 
+
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
+    const seance = await Session.findById(id_seance);
+    if (!seance) return res.status(404).json({ status: "fail", message: "Séance introuvable." });
+
+
+    if (!profDoc || String(seance.enseignant) !== String(profDoc._id)) {
+        return res.status(403).json({ status: "fail", message: "Accès refusé." });
+    }
+
+    const debutSeance = new Date(`${seance.date_seance}T${seance.heure_debut}:00`);
+    const maintenant = new Date();
+    const differenceMS = debutSeance - maintenant;
+    const deuxHeuresEnMS = 2 * 60 * 60 * 1000;
+
+    if (differenceMS < 0) {
+      return res.status(400).json({ status: "fail", message: "Impossible de supprimer une séance passée." });
+    }
+
+    if (seance.mode === "presentiel" && differenceMS < deuxHeuresEnMS) {
+      return res.status(400).json({ 
+        status: "fail", 
+        message: "Séance en présentiel verrouillée (moins de 2h avant le début)." 
+      });
+    }
+
+    const estVierge = !seance.etudiants || seance.etudiants.length === 0;
+
+    if (estVierge) {
+      await Session.findByIdAndDelete(id_seance);
+      return res.status(200).json({
+        status: "success",
+        message: "Séance vierge supprimée définitivement."
+      });
+    } else {
+      seance.statut = "annulée";
+      seance.motif_annulation = motif_annulation || "Annulée par le professeur";
+      await seance.save();
+
+      return res.status(200).json({
+        status: "success",
+        message: "Séance annulée avec succès (les étudiants ont été conservés pour l'historique)."
+      });
+    }
+
+  } catch (error) {
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
 const getSessionById = async (req, res) => {
   try {
     const { id_seance } = req.query;
