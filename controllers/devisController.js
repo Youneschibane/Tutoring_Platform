@@ -118,7 +118,11 @@ const pushPromises = devices.map(device => {
     body: `Un élève a demandé un devis pour ${matiere}`,
     url: '/devis',
     extra: { type: 'devis' },
-  }).catch(err => console.error('Push failed:', err.message));
+  }).catch(async err => {
+  if (err.code === 'DeviceNotRegistered') {
+    await Device.findByIdAndUpdate(device._id, { isActive: false });
+  }
+})
 });
  await Promise.all(pushPromises);
 } else {
