@@ -176,7 +176,7 @@ const repondreDevis = async (req, res) => {
       return res.status(403).json({ message: "Interdit : Ce n'est pas votre devis." });
     }
 
-    devis.luprof = true;  // Le prof vient de le traiter
+    devis.luprof = true;
     devis.luEtud = false;
 
     let notifTitle = '';
@@ -195,7 +195,7 @@ const repondreDevis = async (req, res) => {
       notifBody  = `Votre devis pour ${devis.matiere} a été refusé par l'enseignant.`;
 
     } else if (statut === 'En_attente') {
-      if (prixPropose)       devis.budget_estime      = prixPropose;
+      if (prixPropose)        devis.budget_estime      = prixPropose;
       if (frequence_proposee) devis.frequence_souhaite = frequence_proposee;
       if (duree_proposee)     devis.duree_estimee      = duree_proposee;
       devis.repondue            = true;
@@ -214,8 +214,41 @@ const repondreDevis = async (req, res) => {
 
     await devis.save();
 
-    // Send response immediately
-    res.status(200).json({
+    // ── NOTIFICATION PUSH ─────────────────────
+    try {
+      const eleve = await User.findOne({ idmembre: devis.id_eleve });
+      console.log('id_eleve dans devis:', devis.id_eleve);
+      console.log('eleve trouvé:', eleve?._id);
+
+      if (eleve) {
+        const devices = await Device.find({ userId: eleve._id, isActive: true });
+        console.log('devices trouvés:', devices.length, devices.map(d => d.deviceToken));
+
+        if (devices.length > 0) {
+          const pushPromises = devices.map(device =>
+            sendExpoPush(device.deviceToken, {
+              title: notifTitle,
+              body:  notifBody,
+              url:   '/devis'
+            }).catch(async err => {
+              if (
+                err.code === 'DeviceNotRegistered' ||
+                err.details === 'DeviceNotRegistered'
+              ) {
+                await Device.findByIdAndUpdate(device._id, { isActive: false });
+              } else {
+                console.error('Push error:', err.message);
+              }
+            })
+          );
+          await Promise.all(pushPromises);
+        }
+      }
+    } catch (pushErr) {
+      console.error('Push notification error:', pushErr.message);
+    }
+
+    return res.status(200).json({
       status: 'success',
       message: statut === 'En_attente'
         ? "Contre-proposition envoyée à l'élève."
@@ -223,35 +256,10 @@ const repondreDevis = async (req, res) => {
       data: devis
     });
 
-const eleve = await User.findOne({ idmembre: devis.id_eleve });
-console.log('id_eleve dans devis:', devis.id_eleve);
-console.log('eleve trouvé:', eleve?._id);
-
-const devices = await Device.find({ userId: eleve._id, isActive: true });
-console.log('devices trouvés:', devices.length, devices.map(d => d.deviceToken));
-    if (eleve) {
-      const devices = await Device.find({ userId: eleve._id, isActive: true });
-
-      if (devices.length > 0) {
-        const pushPromises = devices.map(device =>
-          sendExpoPush(device.deviceToken, {
-            title: notifTitle,
-            body:  notifBody,
-            url:   '/devis'
-          }).catch(async err => {
-            if (
-              err.code === 'messaging/invalid-registration-token' ||
-              err.code === 'messaging/registration-token-not-registered'
-            ) {
-              await Device.findByIdAndUpdate(device._id, { isActive: false });
-            }
-          })
-        );
-        await Promise.all(pushPromises);
-      }
-    }
   } catch (error) {
-    res.status(500).json({ status: 'fail', message: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ status: 'fail', message: error.message });
+    }
   }
 };
 
