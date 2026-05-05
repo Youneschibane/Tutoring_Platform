@@ -10,9 +10,10 @@ const io = new Server(httpServer, {
   cors: { origin: process.env.FRONTEND_URL || '*' }
 });
 
-// Enregistre les routes qui dépendent de io
+// routes with socket
 app.setupRoutes(io);
 
+// socket events
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -30,19 +31,27 @@ io.on('connection', (socket) => {
   });
 });
 
+// port
 const PORT = process.env.PORT || 3000;
 
-// ✅ httpServer (avec Socket.IO) qui écoute, pas app
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✓ MongoDB connected'))
-    .catch(err => console.error('❌ MongoDB error:', err));
-});
+// start server AFTER DB connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('✓ MongoDB connected');
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1);
+  });
 
+// graceful shutdown
 const handleShutdown = async (signal) => {
-  console.log(`\n📍 ${signal} received, shutting down...`);
+  console.log(`\n📍 ${signal} received, shutting down gracefully...`);
   stopCronJobs();
+
   httpServer.close(async () => {
     console.log('✓ Server closed');
     await mongoose.connection.close();
@@ -52,5 +61,23 @@ const handleShutdown = async (signal) => {
 };
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT',  () => handleShutdown('SIGINT'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
+// 404 handler (IMPORTANT: after routes)
+app.use((req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[404] ${req.method} ${req.url}`);
+  }
+  res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
+});
+
+// error handler
+app.use((err, req, res, next) => {
+  console.error('[ERREUR]', err);
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: process.env.NODE_ENV === 'production'
+      ? 'Erreur serveur.'
+      : err.message,
+  });
+});
