@@ -192,27 +192,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // =====================
-// 404 HANDLER
-// =====================
-app.use((req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`\x1b[31m[404] ${req.method} ${req.url}\x1b[0m`);
-  }
-  res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
-});
-
-// =====================
-// GLOBAL ERROR HANDLER
-// =====================
-app.use((err, req, res, next) => {
-  console.error(`\x1b[31m[ERREUR]\x1b[0m`, err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: process.env.NODE_ENV === 'production' ? 'Erreur serveur.' : err.message,
-  });
-});
-
-// =====================
 // EXPORT
 // =====================
 module.exports = app;
@@ -226,4 +205,14 @@ module.exports.setupRoutes = (io) => {
   app.use('/api/conversations', conversation);
   app.use('/api/mails',         mail(io));
   app.use('/api/messages',      message(io));
+
+  // =====================
+  // 404 HANDLER (after routes)
+  // =====================
+  app.use((req, res) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\x1b[31m[404] ${req.method} ${req.url}\x1b[0m`);
+    }
+    res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
+  });
 };

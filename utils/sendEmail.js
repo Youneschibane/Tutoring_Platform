@@ -12,7 +12,8 @@ async function sendEmail({ email, subject, message }) {
   // "service: 'gmail'" configure automatiquement host: smtp.gmail.com et port: 465
   const transporter = nodemailer.createTransport({
     service: 'gmail', 
-    auth: { user, pass }
+    auth: { user, pass },
+    family: 4  // Force IPv4 to avoid IPv6 connectivity issues
   });
 
   try {
