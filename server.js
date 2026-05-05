@@ -24,7 +24,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(`\x1b[31m[ERREUR]\x1b[0m`, err);
-  res.status(err.status || 500).json({
+  res.status(err.status === 500).json({
     status: 'error',
     message: process.env.NODE_ENV === 'production' ? 'Erreur serveur.' : err.message,
   });
