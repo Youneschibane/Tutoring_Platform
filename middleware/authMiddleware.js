@@ -20,9 +20,16 @@ const protect = async (req, res, next) => {
 
     // 3. Check user exists
     const user = await User.findById(decoded.id)
-      .select('+passwordChangedAt +isActive +isDeleted');
+      .select('+passwordChangedAt +isActive +isDeleted +banned');
     if (!user) {
       return res.status(401).json({ status: 'fail', message: "Utilisateur introuvable." });
+    }
+
+    if (user.banned) {
+      return res.status(403).json({ 
+        status: 'fail', 
+        message: "Ce compte a été banni par l'administrateur." 
+      });
     }
 
     // 4. Check if account is permanently deleted
