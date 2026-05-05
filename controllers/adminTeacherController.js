@@ -6,7 +6,7 @@ const Service = require('../models/serviceModel');
 const Document = require('../models/documentModel');
 const sendEmail = require('../utils/sendEmail');
 
-const CYCLE_ORDER = ['Primaire', 'College', 'Lycee', 'Universitaire'];
+const CYCLE_ORDER = ['Primaire', 'College', 'Lycee', 'ESI'];
 
 const normalizeSubjectName = (subject) => (subject || '').trim();
 

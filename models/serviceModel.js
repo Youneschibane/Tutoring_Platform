@@ -35,7 +35,7 @@ const serviceSchema = new mongoose.Schema({
   niveau_concerne: {
     type: String,
     required: true,
-    enum: ["Primaire", "Collège", "Lycée", "ESI"],
+    enum: ["Primaire", "College", "Lycee", "ESI"],
     index: true
   },
 
@@ -48,19 +48,9 @@ const serviceSchema = new mongoose.Schema({
   
   matiere:{type:String,required:true},
 
-  
-  niveau_concerne:{type:String,required:true,enum:["Primaire","College","Lycee","ESI"]},
 
   annee_concerne:{type:String , required:true},
 
-
-  nombre_max_participants:{type:Number,required:true},
-
-
-  prix:{type:Number,required:true},
-
-
-  duree_seance:{type:Number,required:true},
 
 
   description:{type:String,required:true},
@@ -70,10 +60,6 @@ const serviceSchema = new mongoose.Schema({
 
   date_creation:{type:Date,default:Date.now},
 
-  isDeleted:{
-    type : Boolean,
-    required: true
-  },
 
   nombre_max_participants: {
     type: Number,

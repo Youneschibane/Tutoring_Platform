@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 // ─────────────────────────────
 // Used by admin acceptance logic to resolve duplicate subjects
 // Primaire < Moyen < Lycée < Universitaire
-const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+const CYCLE_ORDER = ['Primaire', 'College', 'Lycee', 'ESI'];
 module.exports.CYCLE_ORDER = CYCLE_ORDER;
 
 const teacherSchema = new mongoose.Schema({
@@ -82,13 +82,7 @@ const teacherSchema = new mongoose.Schema({
     enum: ['En ligne', 'En présentiel', 'Hybride'],
     default: 'En ligne'
   },
-
-  online: {
-    type: Boolean,
-    default: false
-  },
-    
-  
+      
   reviewsCount: { type: Number, default: 0 },
   // ─────────────────────────────
   // GEO LOCATION
@@ -161,7 +155,7 @@ const teacherSchema = new mongoose.Schema({
           cycle: {
             type: String,
             required: true,
-            enum: ['Primaire', 'Moyen', 'Lycée', 'Universitaire']
+            enum: ['Primaire', 'College', 'Lycee', 'ESI']
           },
           status: {
             type: String,
