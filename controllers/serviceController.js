@@ -587,7 +587,7 @@ try {
     }
 
     // si le service est "Vierge" 
-    const estVierge = seances.every(s => s.etudiants.length === 0);
+    const estVierge = seances.every(s => !s.etudiants || s.etudiants.length === 0);
 
     if (estVierge) {
       // Suppression Physique
@@ -651,7 +651,7 @@ const deleteSession = async (req, res) => {
       });
     }
 
-    const estVierge = seance.etudiants.length === 0;
+    const estVierge = (seance.etudiants.length === 0 || !seance.etudiants );
 
     if (estVierge) {
       await Session.findByIdAndDelete(id_seance);
