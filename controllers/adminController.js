@@ -6,26 +6,51 @@ const Report = require('../models/Report');
 
 // --- Tâche 1 : Bannir un utilisateur ---
 exports.banUser = async (req, res) => {
-  try {
-    const { idmembre, duration } = req.body;
-    
-    let bannedUntil = null;
-    if (duration === '24h') bannedUntil = new Date(Date.now() + 24*60*60*1000);
-    else if (duration === '7 jours') bannedUntil = new Date(Date.now() + 7*24*60*60*1000);
-    // Permanent → bannedUntil reste null mais isActive = false
+    try {
+        const { idmembre, dureeEnJours, estDefinitif } = req.body;
 
-    const user = await User.findOneAndUpdate(
-      { idmembre },
-      { isActive: false, bannedUntil },
-      { new: true }
-    );
-    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé." });
-    res.status(200).json({ message: `L'accès de ${user.firstname} a été révoqué.` });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+       
+        let banUpdate = { banned: true }; 
+
+        if (estDefinitif) {
+            
+            banUpdate.banExpiresAt = null; 
+            banUpdate.isPermanentlyBanned = true;
+        } else if (dureeEnJours && dureeEnJours > 0) {
+            // Temporary Ban Logic
+            const expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + dureeEnJours);
+            
+            banUpdate.banExpiresAt = expirationDate;
+            banUpdate.isPermanentlyBanned = false;
+        } else {
+            return res.status(400).json({ 
+                message: "Veuillez spécifier une durée ou choisir un bannissement définitif." 
+            });
+        }
+
+        const user = await User.findOneAndUpdate(
+            { idmembre: idmembre },
+            banUpdate,
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ message: "Utilisateur non trouvé." });
+
+        const message = estDefinitif 
+            ? `L'accès de ${user.firstname} a été révoqué définitivement.` 
+            : `L'accès de ${user.firstname} a été suspendu pour ${dureeEnJours} jour(s).`;
+
+        res.status(200).json({ 
+            message, 
+            banned: user.banned,
+            banExpiresAt: user.banExpiresAt 
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
-
 // --- Tâche 2 : Modérer une évaluation (Commentaire) ---
 exports.moderateEvaluation = async (req, res) => {
     try {
