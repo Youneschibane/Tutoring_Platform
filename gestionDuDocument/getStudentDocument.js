@@ -6,8 +6,8 @@ const Student  = require('../models/studentModel');
 const getStudentDocuments = async (req, res) => {
   try {
 
-    // ── 1. Récupérer l'ID depuis le body (route POST) ─────────────────────
-    const { student_id } = req.body;
+    // ── 1. Récupérer les paramètres depuis le body ────────────────────────
+    const { student_id, page = 1, limit = 10 } = req.body;
 
     if (!student_id) {
       return res.status(400).json({
@@ -15,7 +15,12 @@ const getStudentDocuments = async (req, res) => {
       });
     }
 
-    // ── 2. Vérifier que l'étudiant existe ───────────────────────────────────
+    // Validation page/limit
+    const pageNum  = Math.max(1, parseInt(page)  || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+    const skip     = (pageNum - 1) * limitNum;
+
+    // ── 2. Vérifier que l'étudiant existe ──────────────────────────────────
     const existingStudent = await Student.findOne({ id_eleve: student_id });
 
     if (!existingStudent) {
@@ -26,7 +31,7 @@ const getStudentDocuments = async (req, res) => {
 
     const studentMongoId = existingStudent._id;
 
-    // ── 3. Récupérer les séances de l'étudiant ──────────────────────────────
+    // ── 3. Récupérer les séances de l'étudiant ─────────────────────────────
     const sessions = await Session.find({ etudiants: studentMongoId })
       .select('_id service')
       .lean();
@@ -35,13 +40,14 @@ const getStudentDocuments = async (req, res) => {
       return res.status(200).json({
         message: "Aucune séance trouvée pour cet étudiant",
         total: 0,
+        totalPages: 0,
+        currentPage: pageNum,
         data: []
       });
     }
 
-    const sessionIds = sessions.map(s => s._id); // ObjectIds → OK pour MongoDB
+    const sessionIds = sessions.map(s => s._id);
 
-    // FIX: dédupliquer via strings PUIS reconvertir en ObjectId pour la query
     const serviceIds = [
       ...new Set(
         sessions
@@ -50,7 +56,7 @@ const getStudentDocuments = async (req, res) => {
       )
     ].map(id => new mongoose.Types.ObjectId(id));
 
-    // ── 4. Récupérer tous les documents accessibles ─────────────────────────
+    // ── 4. Construire la query $or ──────────────────────────────────────────
     const orClauses = [];
 
     if (serviceIds.length) {
@@ -65,27 +71,38 @@ const getStudentDocuments = async (req, res) => {
       return res.status(200).json({
         message: "Aucun document disponible",
         total: 0,
+        totalPages: 0,
+        currentPage: pageNum,
         data: []
       });
     }
 
-    const documents = await Document.find({ $or: orClauses })
-      .populate("service",    "nom description")
-      .populate("seance",     "date_seance statut")
-      .populate("enseignant", "firstname familyname")
-      .lean();
+    const filter = { $or: orClauses };
 
-    if (!documents.length) {
+    // ── 5. Compter le total AVANT pagination ───────────────────────────────
+    const totalDocuments = await Document.countDocuments(filter);
+    const totalPages     = Math.ceil(totalDocuments / limitNum);
+
+    if (!totalDocuments) {
       return res.status(200).json({
         message: "Aucun document trouvé pour cet étudiant",
         total: 0,
+        totalPages: 0,
+        currentPage: pageNum,
         data: []
       });
     }
 
-    // ── 5. Organiser les documents par service ──────────────────────────────
-    // FIX: doc.service suffit pour les deux types (public ET privé)
-    // car addDocument stocke toujours serviceMongoId sur le document
+    // ── 6. Récupérer les documents paginés ─────────────────────────────────
+    const documents = await Document.find(filter)
+      .populate("service",    "nom description")
+      .populate("seance",     "date_seance statut")
+      .populate("enseignant", "firstname familyname")
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // ── 7. Organiser par service ────────────────────────────────────────────
     const result = {};
 
     documents.forEach(doc => {
@@ -109,7 +126,10 @@ const getStudentDocuments = async (req, res) => {
 
     return res.status(200).json({
       message: "Documents récupérés avec succès",
-      total: documents.length,
+      total: totalDocuments,
+      totalPages,
+      currentPage: pageNum,
+      limit: limitNum,
       data: Object.values(result)
     });
 
@@ -122,5 +142,4 @@ const getStudentDocuments = async (req, res) => {
   }
 };
 
-// FIX: export objet pour cohérence
 module.exports = { getStudentDocuments };
