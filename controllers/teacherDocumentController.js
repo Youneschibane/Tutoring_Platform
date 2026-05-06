@@ -1,7 +1,7 @@
 const Teacher    = require('../models/teacherModel');
 const cloudinary = require('../Config/cloudinaryConfig.js');
 
-const VALID_CYCLES = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+const VALID_CYCLES = ['Primaire', 'College', 'Lycee', 'ESI'];
 const { notifyAdmin } = require('../controllers/NotificationAdmin');
 
 // ─────────────────────────────────────────────────────────────────

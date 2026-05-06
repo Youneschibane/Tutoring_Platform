@@ -2,12 +2,8 @@ const Evaluation = require('../models/Evaluation');
 const Teacher = require('../models/teacherModel'); 
 const User = require('../models/userModel'); // ← ajouter en haut du fichier
 
-// ==========================================
-// TÂCHE 1 : Laisser une évaluation (POST)
-// ==========================================
 exports.createReview = async (req, res) => {
     try {
-        // 1. On récupère les données envoyées par le front-end
         const { 
             id_participation, 
             id_enseignant, 
@@ -20,7 +16,6 @@ exports.createReview = async (req, res) => {
             commentaire 
         } = req.body;
 
-        // 2. On crée la nouvelle évaluation
         const newEval = new Evaluation({
             id_evaluation: Date.now(), // Génère un ID unique basé sur l'heure (ou utilisez votre compteur)
             id_participation,
@@ -35,10 +30,8 @@ exports.createReview = async (req, res) => {
             visible: true
         });
 
-        // On sauvegarde dans la base de données
         await newEval.save();
 
-        // 3. Mise à jour de la note moyenne de l'enseignant
 const teacher = await Teacher.findOne({ id_enseignant: parseInt(id_enseignant) });
 if (teacher) {
     const totalScore = (teacher.rating * teacher.reviewsCount) + note;
@@ -50,7 +43,6 @@ if (teacher) {
     );
 }
 
-        // 4. On renvoie un message de succès au front-end
         res.status(201).json({ 
             success: true, 
             message: "Évaluation enregistrée avec succès.", 
@@ -62,64 +54,18 @@ if (teacher) {
     }
 };
 
-// ==========================================
-// TÂCHE 2 : Afficher les évaluations d'un enseignant (GET)
-// ==========================================
-
-
-
 exports.getTeacherReviews = async (req, res) => {
-    try {
-        const profId = parseInt(req.params.id_enseignant);
-
-        const evaluations = await Evaluation.find({ id_enseignant: profId, visible: true })
-            .sort({ date_evaluation: -1 });
-
-        const teacher = await Teacher.findOne({ id_enseignant: profId }).select('rating reviewsCount');
-
-        if (!teacher) {
-            return res.status(404).json({ success: false, message: "Enseignant introuvable." });
-        }
-
-        const reviewsWithNames = await Promise.all(
-            evaluations.map(async (e) => {
-                const user = await User.findOne({ idmembre: e.id_eleve });
-                return {
-                    ...e.toObject(),
-                    nom_eleve: user ? `${user.firstname} ${user.familyname}` : `Élève ${e.id_eleve}`,
-                };
-            })
-        );
-
-        const distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
-        evaluations.forEach(e => {
-            const note = Math.round(e.note);
-            if(distribution[note] !== undefined) distribution[note]++;
-        });
-
-        res.status(200).json({
-            success: true,
-            stats: { averageRating: teacher.rating, totalEvaluations: teacher.reviewsCount },
-            reviews: reviewsWithNames,
-            distribution
-        });
-
-    } catch (error) {
-        res.status(500).json({ success: false, error: "Erreur : " + error.message });
-    }
-};
-
-exports.getMyReviews = async (req, res) => {
   try {
     const profId = parseInt(req.params.id_enseignant);
- 
-    const evaluations = await Evaluation.find({ id_enseignant: profId, visible: true })
-      .sort({ date_evaluation: -1 });
 
-    const teacher = await Teacher.findOne({ id_enseignant: profId }).select('rating reviewsCount');
-
+    const allEvaluations = await Evaluation.find({ 
+      id_enseignant: profId
+    }).sort({ date_evaluation: -1 });
+    
+    const visibleEvaluations = allEvaluations.filter(e => e.visible === true);
+    
     const reviewsWithNames = await Promise.all(
-      evaluations.map(async (e) => {
+      visibleEvaluations.map(async (e) => {
         const user = await User.findOne({ idmembre: e.id_eleve });
         return {
           ...e.toObject(),
@@ -129,17 +75,74 @@ exports.getMyReviews = async (req, res) => {
     );
 
     const distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
-    evaluations.forEach(e => {
+    let sumNotes = 0;
+    
+    visibleEvaluations.forEach(e => {
       const note = Math.round(e.note);
+      sumNotes += note;
       if(distribution[note] !== undefined) distribution[note]++;
     });
+    
+    const totalEvaluations = visibleEvaluations.length;
+    const averageRating = totalEvaluations > 0 ? sumNotes / totalEvaluations : 0;
 
     res.status(200).json({
-       success: true,
-       stats: { averageRating: teacher?.rating, totalEvaluations: teacher?.reviewsCount },
-       reviews: reviewsWithNames,
-       distribution
+      success: true,
+      stats: { 
+        averageRating: parseFloat(averageRating.toFixed(2)), 
+        totalEvaluations: totalEvaluations 
+      },
+      reviews: reviewsWithNames,
+      distribution
     });
+
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Erreur : " + error.message });
+  }
+};
+
+exports.getMyReviews = async (req, res) => {
+  try {
+    const profId = parseInt(req.params.id_enseignant);
+ 
+    const allEvaluations = await Evaluation.find({ 
+      id_enseignant: profId
+    }).sort({ date_evaluation: -1 });
+    
+    const visibleEvaluations = allEvaluations.filter(e => e.visible === true);
+    
+    const reviewsWithNames = await Promise.all(
+      visibleEvaluations.map(async (e) => {
+        const user = await User.findOne({ idmembre: e.id_eleve });
+        return {
+          ...e.toObject(),
+          nom_eleve: user ? `${user.firstname} ${user.familyname}` : `Élève ${e.id_eleve}`,
+        };
+      })
+    );
+
+    const distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
+    let sumNotes = 0;
+    
+    visibleEvaluations.forEach(e => {
+      const note = Math.round(e.note);
+      sumNotes += note;
+      if(distribution[note] !== undefined) distribution[note]++;
+    });
+    
+    const totalEvaluations = visibleEvaluations.length;
+    const averageRating = totalEvaluations > 0 ? sumNotes / totalEvaluations : 0;
+
+    res.status(200).json({
+      success: true,
+      stats: { 
+        averageRating: parseFloat(averageRating.toFixed(2)), 
+        totalEvaluations: totalEvaluations 
+      },
+      reviews: reviewsWithNames,
+      distribution
+    });
+    
   } catch(e) {
     res.status(500).json({ error: e.message });
   }

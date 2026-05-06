@@ -180,8 +180,6 @@ exports.supprimerService = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // Lister tous les services (admin — avec filtre statut)
 // ─────────────────────────────────────────────────────────────
-
-
 exports.getAllServices = async (req, res) => {
   try {
     const page  = Math.max(1, parseInt(req.query.page) || 1);
