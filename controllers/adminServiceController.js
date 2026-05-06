@@ -184,7 +184,6 @@ exports.supprimerService = async (req, res) => {
 
 exports.getAllServices = async (req, res) => {
   try {
-    // ── Pagination sécurisée ───────────────────
     const page  = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, parseInt(req.query.limit) || 10);
     const skip  = (page - 1) * limit;
@@ -193,12 +192,10 @@ exports.getAllServices = async (req, res) => {
 
     const query = {};
 
-    // ── Filtrage propre (SANS utiliser actif) ──
     switch (statut) {
-
       case 'actif':
         query.isDeleted = false;
-        query.actif=true;
+        query.actif = true;
         break;
 
       case 'suspendu':
@@ -212,7 +209,6 @@ exports.getAllServices = async (req, res) => {
 
       case undefined:
       case 'all':
-        // aucun filtre → tous les services
         break;
 
       default:
@@ -222,25 +218,37 @@ exports.getAllServices = async (req, res) => {
         });
     }
 
-    // ── Requête optimisée ──────────────────────
-    const [services, total] = await Promise.all([
+    // ── 🔥 OPTIMIZED DB CALLS ─────────────────────────
 
-      Service.find(query)
-        .select('-__v')
+    const [services, total] = await Promise.all([
+      Service.find(query, {
+        __v: 0,
+        // only keep needed fields (IMPORTANT)
+        name: 1,
+        description: 1,
+        date_creation: 1,
+        suspendedBy: 1,
+        createdBy: 1,
+        actif: 1,
+        suspendu: 1,
+        isDeleted: 1
+      })
         .populate({
           path: 'suspendedBy',
-          select: 'firstname familyname email'
+          select: 'firstname familyname'
+        })
+        .populate({
+          path: 'createdBy',
+          select: 'firstname familyname'
         })
         .sort({ date_creation: -1 })
         .skip(skip)
         .limit(limit)
-        .lean(),
+        .lean(), // 👈 EARLY lean for speed
 
       Service.countDocuments(query)
-
     ]);
 
-    // ── Réponse ───────────────────────────────
     return res.status(200).json({
       status: 'success',
       total,
@@ -251,7 +259,6 @@ exports.getAllServices = async (req, res) => {
     });
 
   } catch (error) {
-
     console.error('getAllServices error:', error);
 
     return res.status(500).json({
