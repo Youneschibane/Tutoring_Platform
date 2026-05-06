@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
-const Conversation = require('../models/Conversation'); 
+const Conversation = require('../models/Conversation');
 const multer = require('multer');
 const path = require('path');
+const { protect } = require('../middleware/authMiddleware'); 
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => { cb(null, 'uploads/'); },
@@ -14,11 +15,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 module.exports = (io) => {
-    // 1. ENVOYER UN MESSAGE
-    router.post('/', upload.single('file'), async (req, res) => {
+    // 1. SEND A MESSAGE (Protected)
+    router.post('/', protect, upload.single('file'), async (req, res) => {
         try {
-            const { conversationId, sender, text } = req.body;
-            
+            const { conversationId, text } = req.body;
+            const senderId = req.user.id; 
             let fileUrl = "";
             if (req.file) {
                 fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
@@ -26,7 +27,7 @@ module.exports = (io) => {
 
             const newMessage = new Message({
                 conversationId,
-                sender,
+                sender: senderId,
                 text,
                 messageType: req.file ? (req.file.mimetype.startsWith('image') ? 'image' : 'file') : 'text',
                 fileUrl
@@ -34,29 +35,33 @@ module.exports = (io) => {
 
             const savedMessage = await newMessage.save();
 
-            // --- NOUVEAU : MISE À JOUR DU DERNIER MESSAGE ---
+           
             await Conversation.findByIdAndUpdate(conversationId, {
                 lastMessage: {
-                    text: text || (req.file ? "Fichier envoyé" : ""),
-                    sender: sender
+                    text: text || (req.file ? "File sent" : ""),
+                    sender: senderId
                 }
             });
 
-            // EMISSION TEMPS RÉEL
             io.to(conversationId).emit('receive_message', savedMessage);
-
             res.status(200).json(savedMessage);
         } catch (err) {
-            console.error(err);
             res.status(500).json({ error: 'Failed to send message' });
         }
     });
 
-    // 2. RÉCUPÉRER L'HISTORIQUE (avec populate pour voir qui a envoyé quoi)
-    router.get('/:conversationId', async (req, res) => {
+    // 2. GET HISTORY 
+    router.get('/:conversationId', protect, async (req, res) => {
         try {
+            const conv = await Conversation.findById(req.params.conversationId);
+            
+            // SECURITY: Check if user is part of this chat
+            if (!conv.participants.includes(req.user.id)) {
+                return res.status(403).json({ error: "Unauthorized access to this history" });
+            }
+
             const messages = await Message.find({ conversationId: req.params.conversationId })
-                                          .populate('sender', 'username'); // Optionnel : pour avoir le nom
+                                          .populate('sender', 'username profilePic');
             res.status(200).json(messages);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch messages' });
@@ -65,3 +70,4 @@ module.exports = (io) => {
 
     return router;
 };
+

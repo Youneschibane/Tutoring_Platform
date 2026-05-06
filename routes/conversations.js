@@ -1,29 +1,44 @@
 const express = require('express');
 const router = express.Router();
 const Conversation = require('../models/Conversation');
+const { protect } = require('../middleware/authMiddleware'); 
 
-// 1. DÉMARRER UN CHAT
-router.post('/', async (req, res) => {
+// 1. START A CHAT 
+router.post('/', protect, async (req, res) => {
   try {
-    const { senderId, receiverId } = req.body;
-    const newConversation = new Conversation({
-      participants: [senderId, receiverId],
+    const { receiverId } = req.body;
+    const senderId = req.user.id; // Identification via Token
+
+    if (senderId === receiverId) {
+      return res.status(400).json({ error: 'You cannot start a chat with yourself' });
+    }
+
+    
+    let conversation = await Conversation.findOne({
+      participants: { $all: [senderId, receiverId] }
     });
-    const savedConversation = await newConversation.save();
-    res.status(200).json(savedConversation);
+
+    if (!conversation) {
+      conversation = new Conversation({
+        participants: [senderId, receiverId],
+      });
+      await conversation.save();
+    }
+    
+    res.status(200).json(conversation);
   } catch (err) {
     res.status(500).json({ error: 'Failed to create conversation' });
   }
 });
 
-// 2. BOITE DE RÉCEPTION (Populate ajouté)
-router.get('/:userId', async (req, res) => {
+// 2. FETCH MY INBOX 
+router.get('/my-inbox', protect, async (req, res) => {
   try {
     const conversations = await Conversation.find({
-      participants: { $in: [req.params.userId] },
+      participants: { $in: [req.user.id] }, 
     })
-    .populate('participants', 'username profilePic') // Pour voir les infos des autres
-    .sort({ updatedAt: -1 }); // Les conversations les plus récentes en haut
+    .populate('participants', 'username profilePic email') 
+    .sort({ updatedAt: -1 });
     
     res.status(200).json(conversations);
   } catch (err) {
@@ -32,3 +47,8 @@ router.get('/:userId', async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+
