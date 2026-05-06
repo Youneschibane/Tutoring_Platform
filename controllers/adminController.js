@@ -1,5 +1,5 @@
 const User = require('../models/userModel');
-const Evaluation = require('../models/Evaluation');
+const Evaluation = require('../models/evaluation');
 const Mail = require('../models/Mail');
 const Report = require('../models/Report');
 
