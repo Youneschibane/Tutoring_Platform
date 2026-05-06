@@ -189,10 +189,10 @@ const addSession = async (req, res ) => {
 
     const tuteur = await prof.findOne({ id_enseignant: id_enseignant });
     const serviceFound = await Service.findOne({ id_service: id_service  , isDeleted : false });
-    if (!tuteur || !serviceFound) {
+    if (!tuteur || !serviceFound || serviceFound.suspendu) {
       return res.status(404).json({
         status: "fail",
-        message: "L'enseignant ou le service n'existe pas."
+        message: "L'enseignant ou le service n'existe pas ou le service suspendu."
       });
     }
 

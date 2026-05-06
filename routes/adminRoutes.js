@@ -7,8 +7,9 @@ const { getAllStudents, searchStudents, getAnneesByCycle } = require('../control
 const { getAllRules, addRule, deleteRule } = require('../controllers/adminRuleController');
 const adminCtrl = require('../controllers/adminController');
 const { getAllParents, searchParents } = require('../controllers/adminParentController');
+const {getTotalUsersCount,  getTotalTeachersCount,getTotalServicesCount, getSessionChart} = require('../controllers/adminHomepageController');   
 
-router.use(protect, restrictTo('admin'));
+// router.use(protect, restrictTo('admin'));
 
 router.get ('/students/annees/:cycle', getAnneesByCycle);
 router.get ('/students',               getAllStudents);
@@ -40,5 +41,35 @@ router.get  ('/inbox',                   adminCtrl.getAdminMailbox);
 
 router.get ('/parents',        getAllParents);
 router.post('/parents/search', searchParents);
+
+router.get('/dashboard', async (req, res) => {
+  try {
+    const [
+      totalUsers,
+      totalTeachers,
+      totalServices,
+      monthlySessions
+    ] = await Promise.all([
+      getTotalUsersCount(),
+      getTotalTeachersCount(),
+      getTotalServicesCount(),
+      getSessionChart()
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalUsers,
+        totalTeachers,
+        totalServices,
+        monthlySessions   
+      }
+    });
+  } catch (error) {
+    console.error('Admin dashboard error:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 
 module.exports = router;
