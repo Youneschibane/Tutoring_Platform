@@ -6,7 +6,7 @@ const cloudinary = require('../Config/cloudinaryConfig.js');
 // CYCLE HIERARCHY
 // Primaire(0) < Moyen(1) < Lycée(2) < Universitaire(3)
 // ─────────────────────────────────────────────────────────────────
-const CYCLE_ORDER = ['Primaire', 'Moyen', 'Lycée', 'Universitaire'];
+const CYCLE_ORDER = ['Primaire', 'College', 'Lycee', 'ESI'];
 
 const cycleRank = (cycle) => {
   const idx = CYCLE_ORDER.indexOf(cycle);
