@@ -1,12 +1,22 @@
-// adminStats.js
-const User = require('./userModel');
-const Teacher = require('./teacherModel');
-const Service = require('./serviceModel');
-const Seance = require('./sessionModel');   // your file is named sessionModel.js
+const User = require('../models/userModel');
+const Teacher = require('../models/teacherModel');
+const Service = require('../models/serviceModel');
+const Seance = require('../models/sessionModel');   
 
-/**
- * 1. Total active users (not admin, not soft-deleted, not permanently banned)
- */
+const monthNames = [
+  'Jan', 'Fév', 'Mar', 'Avr', 'Mai',
+  'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'
+];
+
+const fillMonths = (aggregated) => {
+  const map = new Map(aggregated.map(a => [a._id, a.count]));
+  return monthNames.map((name, idx) => ({
+    month: name,
+    count: map.get(idx + 1) || 0
+  }));
+};
+
+
 async function getTotalUsersCount() {
   return User.countDocuments({
     role: { $ne: 'admin' },
@@ -15,12 +25,6 @@ async function getTotalUsersCount() {
   });
 }
 
-/**
- * 2. Total teachers (same conditions applied on User collection)
- *    If you prefer counting Teacher documents that have a matching active User,
- *    you can join, but counting users with role 'teacher' is simpler and matches
- *    the "same condition" requirement.
- */
 async function getTotalTeachersCount() {
   return User.countDocuments({
     role: 'teacher',
@@ -29,48 +33,38 @@ async function getTotalTeachersCount() {
   });
 }
 
-/**
- * 3. Total services (including soft‑deleted ones)
- */
 async function getTotalServicesCount() {
-  // No filter on isDeleted → counts everything
   return Service.countDocuments();
 }
 
-/**
- * 4. Monthly assured sessions table
- *    Returns array of { yearMonth: "2025-01", count: 12 }
- *    Sorted chronologically.
- */
-async function getMonthlyAssuredSessions() {
-  const pipeline = [
-    // Keep only sessions that were effectively held
-    { $match: { statut: 'assuree' } },
-    // Group by year-month extracted from date_seance
-    {
-      $group: {
-        _id: { $dateToString: { format: '%Y-%m', date: '$date_seance' } },
-        count: { $sum: 1 }
-      }
-    },
-    // Sort from earliest to latest
-    { $sort: { _id: 1 } },
-    // Rename _id to yearMonth for a cleaner output
-    {
-      $project: {
-        _id: 0,
-        yearMonth: '$_id',
-        count: 1
-      }
-    }
-  ];
+const getSessionChart = async () => {
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const lastYear = thisYear - 1;
+  const startThisYear = new Date(thisYear, 0, 1);
+  const startLastYear = new Date(lastYear, 0, 1);
+  const endLastYear   = new Date(lastYear, 11, 31, 23, 59, 59, 999);
 
-  return Seance.aggregate(pipeline);
+  const [thisYearSessions, lastYearSessions] = await Promise.all([
+    Seance.aggregate([
+      { $match: { statut: 'assuree', date_seance: { $gte: startThisYear } } },
+      { $group: { _id: { $month: '$date_seance' }, count: { $sum: 1 } } }
+    ]),
+    Seance.aggregate([
+      { $match: { statut: 'assuree', date_seance: { $gte: startLastYear, $lte: endLastYear } } },
+      { $group: { _id: { $month: '$date_seance' }, count: { $sum: 1 } } }
+    ])
+  ]);
+
+  return {
+    thisYear: fillMonths(thisYearSessions),
+    lastYear: fillMonths(lastYearSessions)
+  };
 }
 
 module.exports = {
   getTotalUsersCount,
   getTotalTeachersCount,
   getTotalServicesCount,
-  getMonthlyAssuredSessions
+  getSessionChart
 };

@@ -11,6 +11,7 @@ const calculateTrend = (current, previous) => {
   return Number(trend.toFixed(2));
 };
 
+
 const durationExpr = {
   $subtract: [
     {
