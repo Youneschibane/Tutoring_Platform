@@ -216,7 +216,7 @@ exports.getAllServices = async (req, res) => {
         });
     }
 
-    // ── 🔥 OPTIMIZED DB CALLS ─────────────────────────
+    // ──  OPTIMIZED DB CALLS ─────────────────────────
 
     const [services, total] = await Promise.all([
       Service.find(query, {

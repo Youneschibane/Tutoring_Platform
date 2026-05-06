@@ -92,7 +92,7 @@ const getStudentDocuments = async (req, res) => {
         }
       },
 
-      // ── 🔥 supprimer services vides ────────────────────
+      // ──  supprimer services vides ────────────────────
       {
         $match: {
           $or: [
