@@ -26,10 +26,21 @@ const protect = async (req, res, next) => {
     }
 
     if (user.banned) {
-      return res.status(403).json({ 
-        status: 'fail', 
-        message: "Ce compte a été banni par l'administrateur." 
-      });
+      if (!user.isPermanentlyBanned && user.banExpiresAt && user.banExpiresAt < new Date()) {
+        await User.findByIdAndUpdate(user._id, {
+          banned: false,
+          banExpiresAt: null,
+          isPermanentlyBanned: false
+        });
+        user.banned = false; // On met à jour l'objet en mémoire pour autoriser l'accès immédiatement
+      } else {
+        // Sinon, on bloque l'accès
+        const msg = user.isPermanentlyBanned
+          ? "Votre compte a été banni définitivement."
+          : `Votre compte est suspendu jusqu'au ${user.banExpiresAt?.toLocaleDateString('fr-FR')}.`;
+
+        return res.status(403).json({ status: 'fail', message: msg });
+      }
     }
 
     // 4. Check if account is permanently deleted
