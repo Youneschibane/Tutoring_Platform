@@ -120,11 +120,29 @@ const getTeacherDashboard = async (req, res) => {
         }
       ]),
 
-      Seance.find({
-        enseignant: longId,
-        date_seance: { $gte: startOfToday, $lte: endOfToday }
-      }).sort({ heure_debut: 1 }),
-
+    Seance.aggregate([
+  {
+    $match: {
+      enseignant: longId,
+      date_seance: { $gte: startOfToday, $lte: endOfToday }
+    }
+  },
+  {
+    $lookup: {
+      from:         'services',
+      localField:   'service',
+      foreignField: '_id',
+      as:           'serviceData'
+    }
+  },
+  { $unwind: '$serviceData' },
+  {
+    $match: {
+      'serviceData.isDeleted': false  
+    }
+  },
+  { $sort: { heure_debut: 1 } }
+    ]),
       Review.countDocuments({ id_enseignant: teacherId, date_evaluation : { $gte: startOfCurrentMonth } }),
       Review.countDocuments({ id_enseignant: teacherId, date_evaluation : { $gte: startOfLastMonth, $lte: endOfLastMonth } }),
 
