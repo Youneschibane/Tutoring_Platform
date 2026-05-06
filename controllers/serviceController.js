@@ -8,6 +8,9 @@ const sendPush = require('../utils/sendExpoPush');
 const multer = require('multer');
 const storage = require('../Config/uploadMiddleware');
 const upload = multer({ storage: storage });
+const Seance   = require('../models/sessionModel');
+const Teacher  = require('../models/teacherModel');
+const cloudinary = require('../Config/cloudinaryConfig');
 
 const getAllowedCycles = (mainCycle) => {
   const hierarchy = {
@@ -686,6 +689,51 @@ const getSessionById = async (req, res) => {
   }
 };
 
+const addDocumentToSession = async (req, res) => {
+  try {
+    const id_enseignant = req.user.idmembre;
+    const { id_seance } = req.params;
+
+    const tuteur = await Teacher.findOne({ id_enseignant });
+    if (!tuteur) {
+      return res.status(404).json({ status: 'fail', message: 'Enseignant introuvable.' });
+    }
+
+    const seance = await Seance.findOne({ id_seance: Number(id_seance) });
+    if (!seance) {
+      return res.status(404).json({ status: 'fail', message: 'Séance introuvable.' });
+    }
+
+    if (String(seance.enseignant) !== String(tuteur._id)) {
+      return res.status(403).json({ status: 'fail', message: 'Action interdite : Ce n\'est pas votre séance.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ status: 'fail', message: 'Aucun fichier fourni.' });
+    }
+
+    seance.documents.push({
+      url:      req.file.path,       // cloudinary URL
+      publicId: req.file.filename,   // cloudinary public_id
+      nom:      req.body.nom || req.file.originalname,
+      uploadedAt: new Date()
+    });
+
+    await seance.save();
+
+    return res.status(201).json({
+      status:  'success',
+      message: 'Document ajouté avec succès.',
+      data:    seance.documents[seance.documents.length - 1]
+    });
+
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+
+
 module.exports = {
   getProfSubjects,
   createService , 
@@ -696,5 +744,6 @@ module.exports = {
   updateSession, 
   deleteService,
   deleteSession,
-  getSessionById, 
+  getSessionById,
+  addDocumentToSession 
 }
