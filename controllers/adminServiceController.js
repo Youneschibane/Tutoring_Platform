@@ -182,83 +182,137 @@ exports.supprimerService = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 exports.getAllServices = async (req, res) => {
   try {
-    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    // ── PAGINATION ─────────────────────────────────────────────
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.min(50, parseInt(req.query.limit) || 10);
     const skip  = (page - 1) * limit;
 
-    const { statut } = req.query;
+    // ── PARAMS ─────────────────────────────────────────────────
+    const {
+      statut        = 'actif',   // actif | suspendu | supprime | archive | all
+      search,                    // recherche texte libre
+      matiere,                   // filtre matière
+      niveau,                    // filtre niveau
+      type_service,              // Individuel | Groupe
+      annee,                     // filtre année
+      prix_min,
+      prix_max,
+      sort_by    = 'date_creation', // date_creation | prix | nom_service
+      sort_order = 'desc',          // asc | desc
+    } = req.query;
 
+    // ── BUILD FILTER ───────────────────────────────────────────
     const query = {};
 
+    // Statut principal
     switch (statut) {
       case 'actif':
-        query.isDeleted = false;
-        query.actif = true;
+        query.isDeleted              = false;
+        query.suspendu               = false;
+        query.actif                  = true;
+        query['archivedMeta.isArchived'] = false;
         break;
-
       case 'suspendu':
         query.isDeleted = false;
-        query.suspendu = true;
+        query.suspendu  = true;
         break;
-
       case 'supprime':
         query.isDeleted = true;
         break;
-
-      case undefined:
-      case 'all':
+      case 'archive':
+        query.isDeleted                  = false;
+        query['archivedMeta.isArchived'] = true;
         break;
-
+      case 'all':
+        break; // admin only — aucun filtre
       default:
         return res.status(400).json({
           status: 'fail',
-          message: 'Invalid statut filter'
+          message: `Statut invalide : "${statut}". Valeurs acceptées : actif, suspendu, supprime, archive, all`
         });
     }
 
-    // ──  OPTIMIZED DB CALLS ─────────────────────────
+    // Recherche texte (nom_service + matiere)
+    if (search?.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { nom_service: regex },
+        { matiere:     regex },
+        { description: regex }
+      ];
+    }
 
+    // Filtres optionnels
+    if (matiere)      query.matiere      = new RegExp(matiere.trim(), 'i');
+    if (niveau)       query.niveau_concerne = niveau;
+    if (type_service) query.type_service = type_service;
+    if (annee)        query.annee_concerne = annee;
+
+    // Fourchette de prix
+    if (prix_min || prix_max) {
+      query.prix = {};
+      if (prix_min) query.prix.$gte = parseFloat(prix_min);
+      if (prix_max) query.prix.$lte = parseFloat(prix_max);
+    }
+
+    // ── SORT ───────────────────────────────────────────────────
+    const ALLOWED_SORTS = ['date_creation', 'prix', 'nom_service'];
+    const sortField = ALLOWED_SORTS.includes(sort_by) ? sort_by : 'date_creation';
+    const sortDir   = sort_order === 'asc' ? 1 : -1;
+
+    // ── QUERY ──────────────────────────────────────────────────
     const [services, total] = await Promise.all([
-      Service.find(query, {
-        __v: 0,
-        // only keep needed fields (IMPORTANT)
-        name: 1,
-        description: 1,
-        date_creation: 1,
-        suspendedBy: 1,
-        createdBy: 1,
-        actif: 1,
-        suspendu: 1,
-        isDeleted: 1
-      })
-        .populate({
-          path: 'suspendedBy',
-          select: 'firstname familyname'
-        })
-        .populate({
-          path: 'createdBy',
-          select: 'firstname familyname'
-        })
-        .sort({ date_creation: -1 })
+      Service.find(query)
+        .select(`
+          id_service id_enseignant id_enseignant_mongoose
+          nom_service type_service matiere niveau_concerne
+          annee_concerne description nombre_max_participants
+          prix duree_seance actif suspendu isDeleted date_creation
+          suspendedBy suspendedAt suspensionReason
+          archivedMeta
+        `)
+        .populate({ path: 'id_enseignant_mongoose', select: 'firstname familyname email' })
+        .populate({ path: 'suspendedBy',            select: 'firstname familyname' })
+        .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limit)
-        .lean(), // 👈 EARLY lean for speed
+        .lean(),
 
       Service.countDocuments(query)
     ]);
 
+    // ── NORMALIZE ──────────────────────────────────────────────
+    // Aplatir les infos enseignant directement dans chaque service
+    const data = services.map(({ id_enseignant_mongoose, suspendedBy, ...s }) => ({
+      ...s,
+      enseignant: id_enseignant_mongoose
+        ? {
+            _id:        id_enseignant_mongoose._id,
+            firstname:  id_enseignant_mongoose.firstname,
+            familyname: id_enseignant_mongoose.familyname,
+            email:      id_enseignant_mongoose.email,
+          }
+        : { id_enseignant: s.id_enseignant }, // fallback si populate échoue
+      suspendedBy: suspendedBy
+        ? `${suspendedBy.firstname} ${suspendedBy.familyname}`
+        : null,
+    }));
+
+    // ── RESPONSE ───────────────────────────────────────────────
     return res.status(200).json({
       status: 'success',
-      total,
-      page,
-      pages: Math.ceil(total / limit),
-      limit,
-      data: services
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        limit,
+      },
+      filters: { statut, search, matiere, niveau, type_service, annee, prix_min, prix_max },
+      data,
     });
 
   } catch (error) {
-    console.error('getAllServices error:', error);
-
+    console.error('[getAllServices]', error);
     return res.status(500).json({
       status: 'error',
       message: error.message
