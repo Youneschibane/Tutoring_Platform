@@ -1,4 +1,4 @@
-const Evaluation = require('../models/Evaluation');
+const Evaluation = require('../models/evaluation');
 const Teacher = require('../models/teacherModel'); 
 const User = require('../models/userModel'); // ← ajouter en haut du fichier
 
