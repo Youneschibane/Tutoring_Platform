@@ -180,11 +180,8 @@ exports.supprimerService = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // Lister tous les services (admin — avec filtre statut)
 // ─────────────────────────────────────────────────────────────
-
-
 exports.getAllServices = async (req, res) => {
   try {
-    // ── Pagination sécurisée ───────────────────
     const page  = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, parseInt(req.query.limit) || 10);
     const skip  = (page - 1) * limit;
@@ -193,7 +190,6 @@ exports.getAllServices = async (req, res) => {
 
     const query = {};
 
-    // ── Filtrage propre (SANS utiliser actif) ──
     switch (statut) {
 
       case 'actif':
