@@ -285,12 +285,11 @@ const addSession = async (req, res ) => {
 
 const getServiceSessions = async (req, res) => {
   try {
-    const { id_service } = req.query;
-
-    if (!id_service) {
+    const { id } = req.params;
+    if (!id) {
       return res.status(400).json({ status: "fail", message: "ID service requis." });
     }
-    const serviceFound = await Service.findOne({ id_service });
+    const serviceFound = await Service.findOne({id_service :  id});
 
     if(!serviceFound){
         return res.status(404).json({
@@ -588,7 +587,7 @@ try {
     }
 
     // si le service est "Vierge" 
-    const estVierge = seances.every(s => s.etudiants.length === 0);
+    const estVierge = seances.every(s => !s.etudiants || s.etudiants.length === 0);
 
     if (estVierge) {
       // Suppression Physique
@@ -652,7 +651,7 @@ const deleteSession = async (req, res) => {
       });
     }
 
-    const estVierge = seance.etudiants.length === 0;
+    const estVierge = !seance.etudiants || seance.etudiants.length === 0;
 
     if (estVierge) {
       await Session.findByIdAndDelete(id_seance);

@@ -66,9 +66,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Autoriser les requêtes sans origine (Postman, apps mobiles, etc.)
     if (!origin) return callback(null, true);
-
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -92,11 +90,11 @@ app.disable('x-powered-by');
 app.use(express.static(__dirname));
 
 // =====================
-// REQUEST LOGGER (dev uniquement)
+// REQUEST LOGGER
 // =====================
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
-    console.log(`\x1b[36m[INCOMING] ${req.method} ${req.url}\x1b[0m`);
+    console.log('[INCOMING]', req.method, req.url);
     next();
   });
 }
@@ -104,12 +102,12 @@ if (process.env.NODE_ENV !== 'production') {
 // =====================
 // BODY PARSING
 // =====================
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // =====================
-// SANITIZATION (XSS + NoSQL Injection)
+// SANITIZATION
 // =====================
 const sanitize = (val) => {
   if (typeof val === 'string') return xss(val.replace(/\$/g, ''));
@@ -130,7 +128,7 @@ app.use((req, res, next) => {
 });
 
 // =====================
-// HPP (HTTP Parameter Pollution)
+// HPP
 // =====================
 app.use(hpp());
 
@@ -171,21 +169,20 @@ app.use('/api/report',           reportRoutes);
 app.use('/api/review',           reviewsRoutes);
 app.use('/api/prof',             statistic);
 
-// --- Routes Admin ---
 app.use('/api/admin/teachers', (req, res, next) => {
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[ADMIN-ROUTE] ${req.method} /api/admin/teachers`);
+    console.log('[ADMIN-ROUTE]', req.method, '/api/admin/teachers');
   }
   next();
 }, adminTeacherRoutes);
 
-app.use('/api/admin/diplomes',  adminDiplomeRoutes);
-app.use('/api/admin/services',  adminServiceRoutes);
-app.use('/api/admin/deletion',  adminDeletionRoutes);
-app.use('/api/admin',           adminRoutes);
+app.use('/api/admin/diplomes', adminDiplomeRoutes);
+app.use('/api/admin/services', adminServiceRoutes);
+app.use('/api/admin/deletion', adminDeletionRoutes);
+app.use('/api/admin',          adminRoutes);
 
 // =====================
-// SWAGGER (dev uniquement)
+// SWAGGER
 // =====================
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -198,8 +195,8 @@ module.exports = app;
 
 module.exports.setupRoutes = (io) => {
   const conversation = require('./routes/conversations');
-  const mail = require('./routes/mails');
-  const message = require('./routes/messages');
+  const mail         = require('./routes/mails');
+  const message      = require('./routes/messages');
 
   app.set('io', io);
   app.use('/api/conversations', conversation);

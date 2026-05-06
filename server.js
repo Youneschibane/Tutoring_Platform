@@ -13,7 +13,7 @@ const io = new Server(httpServer, {
 // routes with socket
 app.setupRoutes(io);
 
-// socket events
+// ── Socket.io events ──
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -63,7 +63,7 @@ const handleShutdown = async (signal) => {
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 
-// 404 handler (IMPORTANT: after routes)
+// ── 404 handler (AFTER all routes) ──
 app.use((req, res) => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[404] ${req.method} ${req.url}`);
@@ -71,7 +71,7 @@ app.use((req, res) => {
   res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
 });
 
-// error handler
+// ── Global error handler ──
 app.use((err, req, res, next) => {
   console.error('[ERREUR]', err);
   res.status(err.status || 500).json({

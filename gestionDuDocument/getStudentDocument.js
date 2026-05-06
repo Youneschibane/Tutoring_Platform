@@ -5,122 +5,155 @@ const Student  = require('../models/studentModel');
 
 const getStudentDocuments = async (req, res) => {
   try {
-
-    // ── 1. Récupérer l'ID depuis le body (route POST) ─────────────────────
-    const { student_id } = req.body;
+    const { student_id, page = 1, limit = 10, keyword } = req.body;
 
     if (!student_id) {
-      return res.status(400).json({
-        message: "Le champ student_id est obligatoire"
-      });
+      return res.status(400).json({ message: "Le champ student_id est obligatoire" });
     }
 
-    // ── 2. Vérifier que l'étudiant existe ───────────────────────────────────
-    const existingStudent = await Student.findOne({ id_eleve: student_id });
+    const pageNum  = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10));
 
-    if (!existingStudent) {
-      return res.status(404).json({
-        message: "Étudiant introuvable"
-      });
+    // ── 1. Vérifier étudiant ─────────────────────────────
+    const student = await Student.findOne({ id_eleve: student_id }).select('_id');
+    if (!student) {
+      return res.status(404).json({ message: "Étudiant introuvable" });
     }
 
-    const studentMongoId = existingStudent._id;
-
-    // ── 3. Récupérer les séances de l'étudiant ──────────────────────────────
-    const sessions = await Session.find({ etudiants: studentMongoId })
+    // ── 2. Récupérer les séances ─────────────────────────
+    const sessions = await Session.find({ etudiants: student._id })
       .select('_id service')
       .lean();
 
     if (!sessions.length) {
       return res.status(200).json({
-        message: "Aucune séance trouvée pour cet étudiant",
+        message: "Aucune séance trouvée",
         total: 0,
+        totalPages: 0,
+        currentPage: pageNum,
         data: []
       });
     }
 
-    const sessionIds = sessions.map(s => s._id); // ObjectIds → OK pour MongoDB
+    const sessionIds = sessions.map(s => s._id);
 
-    // FIX: dédupliquer via strings PUIS reconvertir en ObjectId pour la query
     const serviceIds = [
       ...new Set(
-        sessions
-          .map(s => s.service?.toString())
-          .filter(Boolean)
+        sessions.map(s => s.service?.toString()).filter(Boolean)
       )
     ].map(id => new mongoose.Types.ObjectId(id));
 
-    // ── 4. Récupérer tous les documents accessibles ─────────────────────────
-    const orClauses = [];
+    // ── 3. Query documents ───────────────────────────────
+    const query = {
+      $or: [
+        { service: { $in: serviceIds }, access_type: "public" },
+        { seance:  { $in: sessionIds }, access_type: "private" }
+      ]
+    };
 
-    if (serviceIds.length) {
-      orClauses.push({ service: { $in: serviceIds }, access_type: "public" });
-    }
+    // ── 4. Aggregate ─────────────────────────────────────
+    let pipeline = [
+      { $match: query },
 
-    if (sessionIds.length) {
-      orClauses.push({ seance: { $in: sessionIds }, access_type: "private" });
-    }
+      {
+        $lookup: {
+          from: "services",
+          localField: "service",
+          foreignField: "_id",
+          as: "service"
+        }
+      },
+      { $unwind: { path: "$service", preserveNullAndEmptyArrays: true } },
 
-    if (!orClauses.length) {
-      return res.status(200).json({
-        message: "Aucun document disponible",
-        total: 0,
-        data: []
+      {
+        $group: {
+          _id: "$service._id",
+          service: { $first: "$service" },
+
+          documents_publics: {
+            $push: {
+              $cond: [
+                { $eq: ["$access_type", "public"] },
+                "$$ROOT",
+                "$$REMOVE"
+              ]
+            }
+          },
+
+          documents_prives: {
+            $push: {
+              $cond: [
+                { $eq: ["$access_type", "private"] },
+                "$$ROOT",
+                "$$REMOVE"
+              ]
+            }
+          }
+        }
+      },
+
+      // ── 🔥 supprimer services vides ────────────────────
+      {
+        $match: {
+          $or: [
+            { documents_publics: { $ne: [] } },
+            { documents_prives: { $ne: [] } }
+          ]
+        }
+      }
+    ];
+
+    // ── 5. Filtre keyword APRÈS groupement ───────────────
+    if (keyword && keyword.trim() !== '') {
+      pipeline.push({
+        $match: {
+          "service.nom": {
+            $regex: keyword.trim(),
+            $options: "i"
+          }
+        }
       });
     }
 
-    const documents = await Document.find({ $or: orClauses })
-      .populate("service",    "nom description")
-      .populate("seance",     "date_seance statut")
-      .populate("enseignant", "firstname familyname")
-      .lean();
+    // ── 6. Pagination ───────────────────────────────────
+    pipeline.push(
+      { $skip: (pageNum - 1) * limitNum },
+      { $limit: limitNum }
+    );
 
-    if (!documents.length) {
-      return res.status(200).json({
-        message: "Aucun document trouvé pour cet étudiant",
-        total: 0,
-        data: []
-      });
-    }
+    const data = await Document.aggregate(pipeline);
 
-    // ── 5. Organiser les documents par service ──────────────────────────────
-    // FIX: doc.service suffit pour les deux types (public ET privé)
-    // car addDocument stocke toujours serviceMongoId sur le document
-    const result = {};
+    // ── 7. Total count (sans pagination) ────────────────
+    const countPipeline = pipeline.filter(stage =>
+      !stage.$skip && !stage.$limit
+    );
 
-    documents.forEach(doc => {
-      const serviceObj = doc.service || null;
-      const serviceId  = serviceObj?._id?.toString() ?? 'sans_service';
+    const totalResult = await Document.aggregate([
+      ...countPipeline,
+      { $count: "total" }
+    ]);
 
-      if (!result[serviceId]) {
-        result[serviceId] = {
-          service: serviceObj,
-          documents_publics: [],
-          documents_prives: []
-        };
-      }
+    const total = totalResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitNum);
 
-      if (doc.access_type === "public") {
-        result[serviceId].documents_publics.push(doc);
-      } else {
-        result[serviceId].documents_prives.push(doc);
-      }
-    });
-
+    // ── 8. Response ─────────────────────────────────────
     return res.status(200).json({
       message: "Documents récupérés avec succès",
-      total: documents.length,
-      data: Object.values(result)
+      keyword: keyword?.trim() || null,
+      total,
+      totalPages,
+      currentPage: pageNum,
+      limit: limitNum,
+      data
     });
 
   } catch (error) {
     console.error("Erreur récupération documents :", error);
     return res.status(500).json({
-      message: "Erreur serveur lors de la récupération des documents",
+      message: "Erreur serveur",
       ...(process.env.NODE_ENV === 'development' && { detail: error.message })
     });
   }
 };
 
-// FIX: export objet pour cohérence
 module.exports = { getStudentDocuments };

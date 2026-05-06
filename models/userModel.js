@@ -114,6 +114,14 @@ deletionReason: {
 }
 
 ,
+
+
+banned: {
+    type: Boolean,
+    default: false,
+    index: true ,
+},
+    
 banExpiresAt: {
        type: Date,
         default: null 
