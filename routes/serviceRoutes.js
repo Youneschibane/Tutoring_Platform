@@ -3,6 +3,7 @@ const router = express.Router();
 const serviceMethods = require('../controllers/serviceController')
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const calendarMethods = require('../controllers/calendarController');
+const upload = require('../middleware/upload');
 
 // Get subjects - teacher only
 router.get('/subjects', protect, restrictTo('teacher'), serviceMethods.getProfSubjects);
@@ -18,6 +19,7 @@ router.delete('/deleteService' ,protect , restrictTo('teacher') , serviceMethods
 router.delete('/deleteSession' ,protect , restrictTo('teacher') , serviceMethods.deleteSession);
 router.get('/agenda', calendarMethods.getTeacherCalendar);
 router.get('/seanceById', protect, restrictTo('teacher'), serviceMethods.getSessionById);
+router.post('/:id_seance/documents',           protect, upload.single('document'), serviceMethods.addDocumentToSession);
 
 // Delete session - teacher only
 router.post('/deleteSession', protect, restrictTo('teacher'), serviceMethods.deleteSession);
