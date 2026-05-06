@@ -7,28 +7,11 @@ const { initializeCronJobs, stopCronJobs } = require('./utils/cronService');
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*' }
+  cors: { origin: process.env.FRONTEND_URL || '*' }
 });
 
-// ── Setup socket routes FIRST ──
+// routes with socket
 app.setupRoutes(io);
-app.set('io', io);
-
-// ── 404 and error handler LAST (after all routes) ──
-app.use((req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`\x1b[31m[404] ${req.method} ${req.url}\x1b[0m`);
-  }
-  res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
-});
-
-app.use((err, req, res, next) => {
-  console.error(`\x1b[31m[ERREUR]\x1b[0m`, err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: process.env.NODE_ENV === 'production' ? 'Erreur serveur.' : err.message,
-  });
-});
 
 // ── Socket.io events ──
 io.on('connection', (socket) => {
@@ -48,9 +31,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Single server listen (httpServer, NOT app.listen) ──
+// port
 const PORT = process.env.PORT || 3000;
 
+// start server AFTER DB connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✓ MongoDB connected');
@@ -63,10 +47,11 @@ mongoose.connect(process.env.MONGO_URI)
     process.exit(1);
   });
 
-// ── Graceful shutdown ──
+// graceful shutdown
 const handleShutdown = async (signal) => {
   console.log(`\n📍 ${signal} received, shutting down gracefully...`);
   stopCronJobs();
+
   httpServer.close(async () => {
     console.log('✓ Server closed');
     await mongoose.connection.close();
@@ -76,4 +61,23 @@ const handleShutdown = async (signal) => {
 };
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT',  () => handleShutdown('SIGINT'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+// ── 404 handler (AFTER all routes) ──
+app.use((req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[404] ${req.method} ${req.url}`);
+  }
+  res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
+});
+
+// ── Global error handler ──
+app.use((err, req, res, next) => {
+  console.error('[ERREUR]', err);
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: process.env.NODE_ENV === 'production'
+      ? 'Erreur serveur.'
+      : err.message,
+  });
+});
