@@ -1,5 +1,5 @@
 const User = require('../models/userModel');
-const Evaluation = require('../models/Evaluation');
+const Evaluation = require('../models/evaluation');
 const Mail = require('../models/Mail');
 const Report = require('../models/Report');
 
@@ -104,26 +104,6 @@ exports.getReports = async (req, res) => {
   }
 };
 // Détail d'un signalement
-exports.getReportById = async (req, res) => {
-  try {
-    const report = await Report.findById(req.params.id);
-    if (!report) return res.status(404).json({ message: 'Signalement introuvable.' });
-
-    const reporter = await User.findOne({ idmembre: report.reporterId });
-    const reported = await User.findOne({ idmembre: report.reportedUserId });
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        ...report.toObject(),
-        reporterName: reporter ? `${reporter.firstname} ${reporter.familyname}` : `#${report.reporterId}`,
-        reportedName: reported ? `${reported.firstname} ${reported.familyname}` : `#${report.reportedUserId}`,
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
 
 // Changer le statut d'un signalement
