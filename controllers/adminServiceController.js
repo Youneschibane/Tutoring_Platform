@@ -189,7 +189,7 @@ exports.getAllServices = async (req, res) => {
 
     // ── PARAMS ─────────────────────────────────────────────────
     const {
-      statut        = 'actif',   // actif | suspendu | supprime | archive | all
+      statut        = 'all',   // actif | suspendu | supprime | archive | all
       search,                    // recherche texte libre
       matiere,                   // filtre matière
       niveau,                    // filtre niveau
