@@ -37,7 +37,7 @@ const ROLE_CONFIGS = {
     allowedFields: [
       'nature', 'latitude', 'longitude', 'deplacement',
       'rayon_deplacement', 'description_pedagogique',
-      'certifications', 'actif', 'subjects'
+      'actif', 'subjects', 'modalite', 'online'
     ]
   },
   student: {
@@ -96,23 +96,22 @@ const performUpdate = async (req, res, roleConfig) => {
     // ─────────────────────────────────────────
     const userUpdates = {};
 
-    if (firstname  !== undefined && firstname  !== '') userUpdates.firstname   = firstname;
-    if (familyname !== undefined && familyname !== '') userUpdates.familyname  = familyname;
-    if (postaladr  !== undefined && postaladr  !== '') userUpdates.postaladr   = postaladr;
-    if (email      !== undefined && email      !== '') userUpdates.email       = email;
+    if (firstname   !== undefined && firstname   !== '') userUpdates.firstname   = firstname;
+    if (familyname  !== undefined && familyname  !== '') userUpdates.familyname  = familyname;
+    if (postaladr   !== undefined && postaladr   !== '') userUpdates.postaladr   = postaladr;
+    if (email       !== undefined && email       !== '') userUpdates.email       = email;
     if (numberphone !== undefined && numberphone !== '') userUpdates.numberphone = numberphone;
 
     // ─────────────────────────────────────────
     // 3. HANDLE PHOTO UPLOAD
     // ─────────────────────────────────────────
     if (req.file) {
-      const photoUrl = req.file.path || req.file.secure_url;
+      const photoUrl  = req.file.path || req.file.secure_url;
       newFilePublicId = req.file.filename || req.file.public_id;
 
       if (photoUrl) {
         userUpdates.photo_profil = photoUrl;
 
-        // Tracker l'ancienne photo pour suppression après commit
         if (user.photo_profil) {
           oldPhotoPublicId = getCloudinaryPublicId(user.photo_profil);
         }
@@ -138,23 +137,25 @@ const performUpdate = async (req, res, roleConfig) => {
     const { model, idField, allowedFields, roleName } = roleConfig;
     const roleUpdates = {};
 
-    allowedFields.forEach(field => {
-      if (extraFields[field] !== undefined) {
-        // Special handling for 'subjects' if it's a string (JSON array)
-        if (field === 'subjects' && typeof extraFields[field] === 'string') {
-          try {
-            roleUpdates[field] = JSON.parse(extraFields[field]);
-          } catch (e) {
-            return res.status(400).json({
-              status: 'fail',
-              message: "Format du champ 'subjects' invalide. Doit être un tableau JSON."
-            });
-          }
-        } else {
-          roleUpdates[field] = extraFields[field];
+    for (const field of allowedFields) {
+      if (extraFields[field] === undefined) continue;
+
+      if (field === 'subjects' && typeof extraFields[field] === 'string') {
+        try {
+          roleUpdates[field] = JSON.parse(extraFields[field]);
+        } catch (e) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            status:  'fail',
+            message: "Format du champ 'subjects' invalide. Doit être un tableau JSON."
+          });
         }
+      } else if (field === 'latitude' || field === 'longitude') {
+        roleUpdates[field] = parseFloat(extraFields[field]);
+      } else {
+        roleUpdates[field] = extraFields[field];
       }
-    });
+    }
 
     // ─────────────────────────────────────────
     // 6. UPDATE ROLE MODEL
@@ -169,7 +170,9 @@ const performUpdate = async (req, res, roleConfig) => {
         { returnDocument: 'after', runValidators: true, session }
       );
     } else {
-      updatedSpecific = await model.findOne({ [idField]: memberId }).session(session);
+      updatedSpecific = await model.findOne(
+        { [idField]: memberId }
+      ).session(session);
     }
 
     // ─────────────────────────────────────────
@@ -178,8 +181,8 @@ const performUpdate = async (req, res, roleConfig) => {
     await session.commitTransaction();
 
     // ─────────────────────────────────────────
-    // 8. SUPPRIMER L'ANCIENNE PHOTO CLOUDINARY
-    // Après commit — fire and forget
+    // 8. DELETE OLD CLOUDINARY PHOTO
+    // After commit — fire and forget
     // ─────────────────────────────────────────
     if (oldPhotoPublicId) {
       try {
@@ -204,7 +207,6 @@ const performUpdate = async (req, res, roleConfig) => {
   } catch (error) {
     await session.abortTransaction();
 
-    // Rollback nouvelle photo si transaction échouée
     if (newFilePublicId) {
       try {
         await cloudinary.uploader.destroy(newFilePublicId);
@@ -227,7 +229,6 @@ const performUpdate = async (req, res, roleConfig) => {
 // ═══════════════════════════════════════════════════════════════
 // EXPORTED CONTROLLERS
 // ═══════════════════════════════════════════════════════════════
-
 exports.updateProfileTeacher = (req, res) =>
   performUpdate(req, res, ROLE_CONFIGS.teacher);
 
