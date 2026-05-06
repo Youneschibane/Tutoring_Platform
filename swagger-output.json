@@ -5,11 +5,9 @@
     "title": "REST API",
     "description": ""
   },
-  "host": "https://tutoring-platform-2.onrender.com",
+   "host": "tutoring-platform-2.onrender.com",
   "basePath": "/",
-  "schemes": [
-    "https"
-  ],
+  "schemes": ["https"]
   "paths": {
     "/api/auth/logout": {
       "post": {

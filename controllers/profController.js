@@ -287,17 +287,10 @@ const getTeacherDashboard = async (req, res) => {
   }
 };
 
-
 const getTeacherFullProfile = async (req, res) => {
   try {
-    console.log(`Fetching full profile for teacher ID: ${req.params.id}`);
-    //afficher le type de id_enseignant
-    console.log(`Type of id_enseignant: ${typeof req.params.id}`);
-
     const teacherId = parseInt(req.params.id);
-    
 
-    // 0. Vérification ID
     if (!teacherId) {
       return res.status(400).json({
         status: 'fail',
@@ -305,11 +298,7 @@ const getTeacherFullProfile = async (req, res) => {
       });
     }
 
-    // 1. Récupérer Teacher
-    const teacher = await Teacher.findOne({
-      id_enseignant: teacherId,
-      
-    })
+    const teacher = await Teacher.findOne({ id_enseignant: teacherId })
       .populate('reviewedBy', 'firstname familyname')
       .select('-__v')
       .lean();
@@ -320,23 +309,10 @@ const getTeacherFullProfile = async (req, res) => {
         message: 'Enseignant introuvable'
       });
     }
-    console.log(`Teacher data for ID ${teacherId}:`, teacher);
-   
-    // 2. Récupérer User associé
-    const user = await User.findOne({
-      idmembre: teacherId,
-     
-    })
-      .select(`
-        firstname 
-        familyname 
-        email 
-        numberphone 
-        photo_profil 
-        createdAt
-      `)
+
+    const user = await User.findOne({ idmembre: teacherId })
+      .select('firstname familyname email numberphone photo_profil createdAt postaladr')
       .lean();
-      console.log(`User data for teacher ID ${teacherId}:`, user);
 
     if (!user) {
       return res.status(404).json({
@@ -345,41 +321,45 @@ const getTeacherFullProfile = async (req, res) => {
       });
     }
 
-    // 3. Construire les documents depuis teacher (CV + Diplômes)
+    const services = await Service.find({
+      id_enseignant: teacherId,
+      isDeleted:     false        
+    })
+      .select('-__v -archivedMeta')
+      .lean();
+
     const documents = [];
 
-    // CV
     if (teacher.documents?.cv?.url) {
       documents.push({
-        type: 'cv',
-        url: teacher.documents.cv.url,
+        type:       'cv',
+        url:        teacher.documents.cv.url,
         uploadedAt: teacher.documents.cv.uploadedAt || null
       });
     }
 
-    // Diplômes
     if (teacher.documents?.diplomes?.length > 0) {
       teacher.documents.diplomes.forEach(diplome => {
         documents.push({
-          type: 'diplome',
-          nom: diplome.nom,
-          matiere: diplome.matiere,
-          cycle: diplome.cycle,
-          url: diplome.url,
+          type:       'diplome',
+          nom:        diplome.nom,
+          matiere:    diplome.matiere,
+          cycle:      diplome.cycle,
+          url:        diplome.url,
           uploadedAt: diplome.uploadedAt
         });
       });
     }
 
-    // 4. Réponse propre
     const pendingDocuments = [];
+
     if (teacher.pending_diplomes?.length > 0) {
-      teacher.pending_diplomes.forEach((pending) => {
+      teacher.pending_diplomes.forEach(pending => {
         pendingDocuments.push({
-          type: 'pending_diplome',
-          nom: pending.nom,
-          subjects: pending.subjects || (pending.matiere && pending.cycle ? [{ matiere: pending.matiere, cycle: pending.cycle, status: 'pending' }] : []),
-          url: pending.url,
+          type:       'pending_diplome',
+          nom:        pending.nom,
+          subjects:   pending.subjects || [],
+          url:        pending.url,
           uploadedAt: pending.uploadedAt
         });
       });
@@ -387,50 +367,59 @@ const getTeacherFullProfile = async (req, res) => {
 
     const response = {
       teacher: {
-        id: teacher.id_enseignant,
+        id:          teacher.id_enseignant,
         description: teacher.description_pedagogique,
-        modalite: teacher.modalite,
+        modalite:    teacher.modalite,
+        nature:      teacher.nature,
         deplacement: teacher.deplacement,
-        rayon: teacher.rayon_deplacement,
-        location: teacher.location,
-        rating: teacher.rating,
-        reviewsCount: teacher.reviewsCount,
-        subjects: teacher.subjects,
-        accepted: teacher.accepted,
-        status: teacher.acceptanceStatus,
-        reviewedBy: teacher.reviewedBy
+        rayon:       teacher.rayon_deplacement,
+        location:    teacher.location,
+        rating:      teacher.rating,
+        reviewsCount:teacher.reviewsCount,
+        subjects:    teacher.subjects,
+        accepted:    teacher.accepted,
+        status:      teacher.acceptanceStatus,
+        reviewedBy:  teacher.reviewedBy,
+        online:      teacher.online,
+        actif:       teacher.actif
       },
 
       user: {
-        fullname: `${user.firstname} ${user.familyname}`,
-        email: user.email,
-        phone: user.numberphone,
-        photo: user.photo_profil,
+        fullname:    `${user.firstname} ${user.familyname}`,
+        firstname:   user.firstname,
+        familyname:  user.familyname,
+        email:       user.email,
+        phone:       user.numberphone,
+        photo:       user.photo_profil,   
+        address:     user.postaladr,
         memberSince: user.createdAt
       },
 
       stats: {
-        documentsCount: documents.length,
-        pendingDocumentsCount: pendingDocuments.length,
-        rating: teacher.rating,
-        reviews: teacher.reviewsCount
+        totalServices:        services.length,
+        activeServices:       services.filter(s => s.actif && !s.suspendu).length,
+        suspendedServices:    services.filter(s => s.suspendu).length,
+        documentsCount:       documents.length,
+        pendingDocumentsCount:pendingDocuments.length,
+        rating:               teacher.rating,
+        reviews:              teacher.reviewsCount
       },
 
+      services,           
       documents,
       pendingDocuments
     };
 
     return res.status(200).json({
       status: 'success',
-      data: response
+      data:   response
     });
 
   } catch (error) {
     console.error('getTeacherFullProfile error:', error);
-
     return res.status(500).json({
-      status: 'error',
-      message: 'Erreur serveur'
+      status:  'error',
+      message: error.message
     });
   }
 };

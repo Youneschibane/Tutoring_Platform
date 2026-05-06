@@ -61,9 +61,8 @@ app.set('trust proxy', 1);
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
- 'https://tutoring-platform-2.onrender.com/api-docs',
+   'https://tutoring-platform-2.onrender.com/api-docs',
  'https://tutoring-platform-2.onrender.com',
-
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -207,14 +206,4 @@ module.exports.setupRoutes = (io) => {
   app.use('/api/conversations', conversation);
   app.use('/api/mails',         mail(io));
   app.use('/api/messages',      message(io));
-
-  // =====================
-  // 404 HANDLER (after routes)
-  // =====================
-  app.use((req, res) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`\x1b[31m[404] ${req.method} ${req.url}\x1b[0m`);
-    }
-    res.status(404).json({ status: 'fail', message: 'Route introuvable.' });
-  });
 };
