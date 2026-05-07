@@ -31,4 +31,3 @@ dist/
 firebase-key.json
 .env
 node_modules/
-.sciprt.js
