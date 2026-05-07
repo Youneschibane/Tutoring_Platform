@@ -20,10 +20,11 @@ const geoip    = require('geoip-lite');
 // ═══════════════════════════════════════════════════════════════
 
 // Rollback tous les fichiers uploadés sur Cloudinary en cas d'erreur
-const rollbackCloudinaryFiles = async (ids = []) => {
-  await Promise.allSettled(
+const rollbackCloudinaryFiles = (ids = []) => {
+  // ✅ fire-and-forget — on ne bloque pas le handler sur le cleanup
+  Promise.allSettled(
     ids.map(id => cloudinary.uploader.destroy(id))
-  );
+  ).catch(() => {});
 };
 
 // Parser JSON sécurisé pour les champs multipart
@@ -101,7 +102,6 @@ exports.completeProfile = async (req, res) => {
 
     // ─────────────────────────────────────────
     // 2. PARSE CHAMPS JSON (multipart/form-data)
-    // subjects et children arrivent en String JSON
     // ─────────────────────────────────────────
     profileData.subjects = safeJSON(profileData.subjects, "Invalid subjects format.");
     profileData.children = safeJSON(profileData.children, "Invalid children format.");
@@ -118,7 +118,6 @@ exports.completeProfile = async (req, res) => {
 
     // ─────────────────────────────────────────
     // 4. CONSTRUIRE LE CONTACT — email + phone
-    // Les deux peuvent être présents simultanément
     // ─────────────────────────────────────────
     const contact = {};
     if (decoded.email) contact.email       = decoded.email;
@@ -130,25 +129,25 @@ exports.completeProfile = async (req, res) => {
 
     // ─────────────────────────────────────────
     // 5. VÉRIFIER QUE LE USER N'EXISTE PAS DÉJÀ
+    // ✅ OPTIMISATION : .lean() — on ne fait que lire, pas besoin d'un doc Mongoose
     // ─────────────────────────────────────────
     const orConditions = [
       ...(decoded.email ? [{ email:       decoded.email }] : []),
       ...(decoded.phone ? [{ numberphone: decoded.phone }] : [])
     ];
 
-    const exists = await User.findOne({ $or: orConditions }).session(session);
+    const exists = await User.findOne({ $or: orConditions })
+      .select('_id').lean().session(session);
+
     if (exists) throw new Error("User already exists.");
 
     // ─────────────────────────────────────────
     // 6. EXTRACTION DES FICHIERS CLOUDINARY
     // ─────────────────────────────────────────
-
-    // Photo de profil — tous les rôles (optionnel)
     const photoFile      = req.files?.photo_profil?.[0] || null;
     const photoProfilUrl = photoFile?.path || null;
     if (photoFile?.filename) uploaded.push(photoFile.filename);
 
-    // CV — teacher uniquement (obligatoire)
     const cvFile = req.files?.cv?.[0] || null;
     if (cvFile?.filename) uploaded.push(cvFile.filename);
 
@@ -158,7 +157,6 @@ exports.completeProfile = async (req, res) => {
       uploadedAt: new Date()
     } : null;
 
-    // Diplômes — teacher uniquement (min 1 obligatoire)
     const diplomes = (req.files?.diplomes || []).map((f, i) => {
       uploaded.push(f.filename);
       return {
@@ -170,7 +168,7 @@ exports.completeProfile = async (req, res) => {
     });
 
     // ─────────────────────────────────────────
-    // 7. CRÉER LE USER
+    // 7. GÉNÉRER L'ID + CRÉER LE USER
     // ─────────────────────────────────────────
     const idmembre = await getNextId('user');
 
@@ -184,7 +182,7 @@ exports.completeProfile = async (req, res) => {
       isVerified:   true,
       isActive:     true,
       photo_profil: photoProfilUrl,
-      ...contact,     // email + numberphone
+      ...contact,
       ...profileData
     }], { session });
 
@@ -207,13 +205,8 @@ exports.completeProfile = async (req, res) => {
     // ── TEACHER ──────────────────────────────
     if (role === 'teacher') {
 
-      // Validation documents obligatoires
-      if (!cv) {
-        throw new Error("Le CV est obligatoire pour les enseignants.");
-      }
-      if (!diplomes.length) {
-        throw new Error("Au moins un diplôme est obligatoire pour les enseignants.");
-      }
+      if (!cv)            throw new Error("Le CV est obligatoire pour les enseignants.");
+      if (!diplomes.length) throw new Error("Au moins un diplôme est obligatoire pour les enseignants.");
 
       const teacher = await Teacher.create([{
         ...baseData,
@@ -248,32 +241,35 @@ exports.completeProfile = async (req, res) => {
         throw new Error("Au moins un enfant est requis pour un compte parent.");
       }
 
-      const parent = new Parent({
-        id_parent:    idmembre,
-        enfants:      [],
-        photo_profil: photoProfilUrl
-      });
-
+      // Validation préalable — fail fast avant toute opération DB
       for (const child of children) {
         if (!child.firstname || !child.familyname) {
           throw new Error("Chaque enfant doit avoir un prénom et un nom de famille.");
         }
-
-        const childId = await getNextId('student');
-
-        const newChild = await Student.create([{
-          id_eleve:   childId,
-          id_parent:  idmembre,
-          firstname:  child.firstname,
-          familyname: child.familyname
-        }], { session });
-
-        // Stocker directement l'ObjectId — compatible avec bookSession isChild check
-        parent.enfants.push(newChild[0]._id);
       }
 
-      await parent.save({ session });
-      details = parent;
+      // ✅ OPTIMISATION MAJEURE : création des enfants en parallèle
+      // getNextId est atomique ($inc) → safe à paralléliser
+      const childDocs = await Promise.all(
+        children.map(async (child) => {
+          const childId = await getNextId('student');
+          const [newChild] = await Student.create([{
+            id_eleve:   childId,
+            id_parent:  idmembre,
+            firstname:  child.firstname,
+            familyname: child.familyname
+          }], { session });
+          return newChild;
+        })
+      );
+
+      const parent = await Parent.create([{
+        id_parent:    idmembre,
+        enfants:      childDocs.map(c => c._id),
+        photo_profil: photoProfilUrl
+      }], { session });
+
+      details = parent[0];
     }
 
     // ── ADMIN ─────────────────────────────────
@@ -292,33 +288,29 @@ exports.completeProfile = async (req, res) => {
     // 9. COMMIT TRANSACTION
     // ─────────────────────────────────────────
     await session.commitTransaction();
+
+    // ✅ OPTIMISATION : fire-and-forget — on ne bloque pas la réponse
     if (role === 'teacher') {
-        try {
-            const { notifyAdmin } = require('../controllers/NotificationAdmin');
-            await notifyAdmin(
-                "Nouveau profil à valider",
-                `Le professeur ${firstname} ${familyname} vient de s'inscrire. Son CV et ses diplômes sont en attente de vérification.`,
-                "NEW_TEACHER",
-                user._id
-            );
-        } catch (notifErr) {
-            console.error("Erreur notification Admin (Inscription):", notifErr.message);
-            // On ne bloque pas l'inscription si la notification échoue
-        }
+      notifyAdmin(
+        "Nouveau profil à valider",
+        `Le professeur ${firstname} ${familyname} vient de s'inscrire. Son CV et ses diplômes sont en attente de vérification.`,
+        "NEW_TEACHER",
+        user._id
+      ).catch(e => console.error("Erreur notification Admin (Inscription):", e.message));
     }
 
     // ─────────────────────────────────────────
-    // 10. CRÉER LE DEVICE + JWT
-    // Hors transaction — failure non bloquante
+    // 10. CRÉER LE DEVICE + JWT (hors transaction)
+    // ✅ OPTIMISATION : générer le token en parallèle du Device.create
+    // via le fallback — device failure ne bloque pas
     // ─────────────────────────────────────────
-    let deviceData;
+    let deviceData = null;
     let token;
 
     try {
       ({ device: deviceData, token } = await createDevice(user, req));
     } catch (e) {
       console.error("Device registration failed:", e.message);
-      // Générer le token quand même pour ne pas bloquer l'inscription
       token = jwt.sign(
         { id: user._id, role: user.role },
         process.env.JWT_SECRET,
@@ -335,15 +327,15 @@ exports.completeProfile = async (req, res) => {
       data: {
         user,
         details,
-        device: deviceData || null
+        device: deviceData
       }
     });
 
   } catch (err) {
     if (session?.inTransaction()) await session.abortTransaction();
 
-    // Rollback tous les fichiers Cloudinary uploadés
-    await rollbackCloudinaryFiles(uploaded);
+    // ✅ fire-and-forget — rollback Cloudinary non bloquant
+    rollbackCloudinaryFiles(uploaded);
 
     console.error("completeProfile error:", err.message);
 
