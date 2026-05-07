@@ -11,7 +11,7 @@ const { logout } = require('../packProfil/Deconnexion');
 const {  logoutOtherDevices } = require('../packProfil/Deconnexion');
 const logoutController = require('../packProfil/Deconnexion');
 const upload=require('../middleware/upload');
-
+const {toggleNotifications} = require('../controllers/deviceController')
 
 const rateLimit = require('express-rate-limit');
 // Rate limiter strict pour admin — dans authRoutes.js
@@ -253,5 +253,8 @@ router.post('/password/verify',     controller.verifyResetOtp);
  * #swagger.responses[500] = { description: "Internal Server Error" }
  */
 router.post('/password/reset',      controller.resetPassword);
+
+router.patch('/notifications', protect, toggleNotifications);
+
 
 module.exports = router;
