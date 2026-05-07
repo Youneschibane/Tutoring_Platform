@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const upload = require('../middleware/upload');
-const { protect } = require('../middleware/authMiddleware');
+const { protect , restrictTo } = require('../middleware/authMiddleware');
 const { isTeacherAccepted } = require('../Sign_In_Up/Sign_up');
 
 // On ajoute les accolades ici pour extraire la fonction de l'objet exporté
@@ -65,8 +65,8 @@ router.post('/get-documents', protect, getStudentDocuments);
   #swagger.responses[409] = { description: 'Document en doublon' }
   #swagger.responses[500] = { description: 'Erreur serveur' }
 */
-
-router.post('/student', getStudentDocuments);
+//a route for add documents 
+router.post('/add', protect,restrictTo('teacher'), upload.single('fichier'), addDocument);
 /*
   #swagger.tags = ['Documents']
   #swagger.summary = 'Récupérer les documents accessibles à un étudiant'
