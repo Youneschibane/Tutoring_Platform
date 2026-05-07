@@ -1,30 +1,34 @@
-// utils/sendEmail.js
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const nodemailer = require('nodemailer');
 
 async function sendEmail({ email, subject, message }) {
-  // Fallback dev mode si pas de clé
-  if (!process.env.RESEND_API_KEY) {
-    console.log(`[DEV MODE] Mail vers: ${email} | Sujet: ${subject}`);
-    console.log(message);
-    return;
-  }
-
-  const { data, error } = await resend.emails.send({
-    from: `Mon App <${process.env.EMAIL_FROM}>`,
-    to: email,
-    subject,
-    text: message,
-    ...(message.includes('<') && { html: message })
+  // Configuration du transporteur en utilisant les variables d'environnement
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,    // smtp.gmail.com
+    port: process.env.SMTP_PORT,    // 587
+    secure: false,                  // false pour le port 587 (STARTTLS)
+    auth: {
+      user: process.env.SMTP_USER,  // Votre adresse Gmail
+      pass: process.env.SMTP_PASS   // Votre mot de passe d'application (16 caractères)
+    }
   });
 
-  if (error) {
-    console.error('❌ Resend error:', error);
-    throw new Error(error.message); // ← propagation de l'erreur
-  }
+  const mailOptions = {
+    from: `"Mon App" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: subject,
+    text: message,
+    // Permet d'envoyer du HTML si le message contient des balises
+    ...(message.includes('<') && { html: message })
+  };
 
-  console.log(`✅ Mail envoyé à ${email} (id: ${data.id})`);
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email envoyé à ${email} | ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi via Nodemailer :', error);
+    throw error;
+  }
 }
 
 module.exports = { sendEmail };
