@@ -424,17 +424,16 @@ const reponseFinaleEtudiant = async (req, res) => {
   }
 };
 
+
 const getParentChildren = async (req, res) => {
   try {
-    const id_parent = req.user.idmembre; 
+    const id_parent = req.user.idmembre;
     const role = req.user.role;
-    if(role !== 'parent'){
-              return res.status(400).json({
-          status: 'fail',
-          message: "vous n etes pas a parent."
-        });
 
+    if (role !== 'parent') {
+      return res.status(400).json({ status: 'fail', message: "Vous n'êtes pas un parent." });
     }
+
     const parent = await Parent.findOne({ id_parent: parseInt(id_parent) })
       .select('enfants')
       .lean();
@@ -443,8 +442,17 @@ const getParentChildren = async (req, res) => {
       return res.status(404).json({ status: 'fail', message: 'Parent introuvable.' });
     }
 
+    const studentIds = parent.enfants.map(e => e.student);
+    const students   = await Eleve.find({ _id: { $in: studentIds } })
+      .select('_id id_eleve')
+      .lean();
+
+    const idMap = {};
+    students.forEach(s => { idMap[String(s._id)] = s.id_eleve; });
+
     const children = parent.enfants.map(e => ({
       student:    e.student,
+      id_eleve:   idMap[String(e.student)] || null,  
       firstname:  e.firstname,
       familyname: e.familyname
     }));
