@@ -5,7 +5,7 @@ async function sendEmail({ email, subject, message }) {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,    // smtp.gmail.com
     port: process.env.SMTP_PORT,    // 587
-    secure: false,                  // false pour le port 587 (STARTTLS)
+    secure: true,                  // false pour le port 587 (STARTTLS)éétrue pour le port 465 (SSL/TLS)
     auth: {
       user: process.env.SMTP_USER,  // Votre adresse Gmail
       pass: process.env.SMTP_PASS   // Votre mot de passe d'application (16 caractères)
