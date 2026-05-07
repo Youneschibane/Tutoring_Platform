@@ -8,10 +8,11 @@ const { isTeacherAccepted } = require('../Sign_In_Up/Sign_up');
 // On ajoute les accolades ici pour extraire la fonction de l'objet exporté
 const { addDocument } = require('../gestionDuDocument/addDocument');
 const { getStudentDocuments } = require('../gestionDuDocument/getStudentDocument');
-const { getSessionDocuments } = require('../controllers/sessionDocumentsController');
+const { getSessionDocuments } = require('../gestionDuDocument/getSessionDocuments');
+const {restrictToTeacher} = require('../middleware/authMiddleware');
 // Protected route - students request documents using POST
 router.post('/get-documents', protect, getStudentDocuments);
-router.post('/get-session-documents', protect, getSessionDocuments);
+router.post('/get-session-documents', protect, restrictTo('teacher'),getSessionDocuments);
 /*
   #swagger.tags = ['Documents']
   #swagger.summary = 'Ajouter un document'
