@@ -22,6 +22,7 @@
   "homepage": "https://github.com/Youneschibane/Tutoring_Platform#readme",
   "dependencies": {
     "@faker-js/faker": "^10.3.0",
+    "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^6.0.0",
     "cloudinary": "^1.41.0",
     "cookie-parser": "^1.4.7",
