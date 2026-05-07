@@ -1,38 +1,30 @@
-const nodemailer = require('nodemailer');
+// utils/sendEmail.js
+const { Resend } = require('resend');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail({ email, subject, message }) {
-  const user = process.env.SMTP_USER; // Ton email complet
-  const pass = process.env.SMTP_PASS; // TON MOT DE PASSE D'APPLICATION (16 caractères)
-
-  if (!user || !pass) {
+  // Fallback dev mode si pas de clé
+  if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV MODE] Mail vers: ${email} | Sujet: ${subject}`);
+    console.log(message);
     return;
   }
 
-  // "service: 'gmail'" configure automatiquement host: smtp.gmail.com et port: 465
-  const transporter = nodemailer.createTransport({
-    service: 'gmail', 
-    auth: { user, pass },
-    family: 4  // Force IPv4 to avoid IPv6 connectivity issues
+  const { data, error } = await resend.emails.send({
+    from: `Mon App <${process.env.EMAIL_FROM}>`,
+    to: email,
+    subject,
+    text: message,
+    ...(message.includes('<') && { html: message })
   });
 
-  try {
-    await transporter.sendMail({
-      from: `"Mon App" <${user}>`,
-      to: email,
-      subject: subject,
-      text: message,
-      // Support HTML automatique si le message contient des balises
-      html: message.includes('<') ? message : undefined 
-    });
-    console.log(`✅ Mail envoyé à ${email}`);
-  } catch (error) {
-    console.error('❌ Erreur SMTP:', error.message);
-    
-    if (error.message.includes('Invalid login')) {
-      console.error("👉 Vérifie que tu utilises un 'Mot de passe d'application' et non ton mot de passe habituel.");
-    }
+  if (error) {
+    console.error('❌ Resend error:', error);
+    throw new Error(error.message); // ← propagation de l'erreur
   }
+
+  console.log(`✅ Mail envoyé à ${email} (id: ${data.id})`);
 }
 
 module.exports = { sendEmail };
