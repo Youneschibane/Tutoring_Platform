@@ -220,5 +220,6 @@ module.exports = {
   getEsiYears,
   getSubjectByNature, 
   getYears,
-  getSubjectsProf
+  getSubjectsProf,
+  
 };

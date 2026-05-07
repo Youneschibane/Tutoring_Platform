@@ -14,4 +14,6 @@ router.get('/Mesdevis' , protect , devisController.getMesDevis);
 
 router.put('/repondreEtud/:id' , protect , restrictTo('student'  , 'parent') , devisController.reponseFinaleEtudiant);
 
+
+router.get('/children'  , protect , restrictTo('parent') , devisController.getParentChildren)
 module.exports = router;
