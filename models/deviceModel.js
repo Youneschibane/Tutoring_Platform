@@ -44,6 +44,10 @@ const deviceSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    notificationsEnabled: {
+      type: Boolean,
+      default: true
+    }
 });
 
 const Device = mongoose.model('Device', deviceSchema);

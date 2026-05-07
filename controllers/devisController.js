@@ -424,9 +424,47 @@ const reponseFinaleEtudiant = async (req, res) => {
   }
 };
 
+const getParentChildren = async (req, res) => {
+  try {
+    const id_parent = req.user.idmembre; 
+    const role = req.user.role;
+    if(role !== 'parent'){
+              return res.status(400).json({
+          status: 'fail',
+          message: "vous n etes pas a parent."
+        });
+
+    }
+    const parent = await Parent.findOne({ id_parent: parseInt(id_parent) })
+      .select('enfants')
+      .lean();
+
+    if (!parent) {
+      return res.status(404).json({ status: 'fail', message: 'Parent introuvable.' });
+    }
+
+    const children = parent.enfants.map(e => ({
+      student:    e.student,
+      firstname:  e.firstname,
+      familyname: e.familyname
+    }));
+
+    return res.status(200).json({
+      status: 'success',
+      total:  children.length,
+      data:   children
+    });
+
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+
 module.exports = {
   creerDevis, 
   getMesDevis,
   repondreDevis,
-  reponseFinaleEtudiant
+  reponseFinaleEtudiant,
+  getParentChildren
 };

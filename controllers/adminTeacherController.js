@@ -10,8 +10,6 @@ const CYCLE_ORDER = ['Primaire', 'College', 'Lycee', 'ESI'];
 
 const normalizeSubjectName = (subject) => (subject || '').trim();
 
-
-
 const DEFAULT_PAGE  = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT     = 100;
@@ -176,6 +174,16 @@ const searchTeachers = async (req, res) => {
 
     for (const [key, value] of Object.entries(filters)) {
       if (value === undefined || value === null || value === '') continue;
+
+      // ── Filtre matière : subjects est un tableau d'objets { name, cycle }
+      // On utilise $elemMatch pour matcher sur le champ name
+      if (key === 'subject') {
+        teacherQuery['subjects'] = {
+          $elemMatch: { name: { $regex: String(value).trim(), $options: 'i' } }
+        };
+        continue;
+      }
+
       const built = buildFieldFilter(value);
       if (built === undefined) continue;
 
@@ -246,15 +254,10 @@ const getTeacherDetails = async (req, res) => {
       totalServices,
       comments,
     ] = await Promise.all([
-      // Séances assurées
       Session.countDocuments({ enseignant: teacherObjectId, statut: 'assuree' }),
-      // Séances annulées
       Session.countDocuments({ enseignant: teacherObjectId, statut: 'annulee' }),
-      // Séances reportées
       Session.countDocuments({ enseignant: teacherObjectId, statut: 'reportee' }),
-      // Total services
       Service.countDocuments({ id_enseignant: teacher.id_enseignant, isDeleted: false }),
-      // All comments
       Review.find({ id_enseignant: teacher.id_enseignant })
         .sort({ createdAt: -1 })
         .limit(20),
@@ -263,7 +266,6 @@ const getTeacherDetails = async (req, res) => {
     return res.status(200).json({
       status: 'success',
       data: {
-        // Teacher profile
         teacher: {
           _id:                       teacher._id,
           id_enseignant:             teacher.id_enseignant,
@@ -283,7 +285,6 @@ const getTeacherDetails = async (req, res) => {
           longitude:                 teacher.longitude,
         },
         user: user || {},
-        // Stats
         stats: {
           seancesAssurees,    
           seancesAnnulees,    
@@ -294,7 +295,6 @@ const getTeacherDetails = async (req, res) => {
             count: teacher.reviewsCount,  
           }
         },
-        // All comments
         comments,
       }
     });
@@ -304,7 +304,6 @@ const getTeacherDetails = async (req, res) => {
     return res.status(500).json({ status: 'error', message: error.message });
   }
 };
-
 
 
 const mergeSubjectsFromDiplomas = (existingSubjects = [], diplomas = []) => {
@@ -340,57 +339,23 @@ const mergeSubjectsFromDiplomas = (existingSubjects = [], diplomas = []) => {
   return Array.from(subjectsMap.values());
 };
 
-/**
- * getPendingTeachers
- * Récupère tous les enseignants en attente d'approbation
- * - Filtre: acceptanceStatus = 'pending'
- * - Tri: par createdAt ascendant (queue FIFO)
- * - Retour: total count + tableau de données
- *
- */
 const getPendingTeachers = async (req, res) => {
   try {
-
     const page = req.query.page * 1 || 1;
     const limit = req.query.limit * 1 || 10;
     const skip = (page - 1) * limit;
 
     const result = await Teacher.aggregate([
-      // ─────────────────────────────
-      // 1. Filter pending teachers
-      // ─────────────────────────────
-      {
-        $match: {
-          acceptanceStatus: 'pending'
-          
-        }
-      },
-
-      // ─────────────────────────────
-      // 2. Join with User collection
-      // ─────────────────────────────
+      { $match: { acceptanceStatus: 'pending' } },
       {
         $lookup: {
-          from: 'users', // ⚠️ must match Mongo collection name
+          from: 'users',
           localField: 'id_enseignant',
           foreignField: 'idmembre',
           as: 'user'
         }
       },
-
-      // ─────────────────────────────
-      // 3. Unwrap user array
-      // ─────────────────────────────
-      {
-        $unwind: {
-          path: '$user',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-
-      // ─────────────────────────────
-      // 4. Shape final output
-      // ─────────────────────────────
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 1,
@@ -400,8 +365,6 @@ const getPendingTeachers = async (req, res) => {
           subjects: 1,
           rating: 1,
           createdAt: 1,
-
-          // USER DATA
           firstname: '$user.firstname',
           familyname: '$user.familyname',
           email: '$user.email',
@@ -409,29 +372,12 @@ const getPendingTeachers = async (req, res) => {
           photo_profil: '$user.photo_profil'
         }
       },
-
-      // ─────────────────────────────
-      // 5. Sort
-      // ─────────────────────────────
-      {
-        $sort: {
-          createdAt: -1
-        }
-      },
-
-      // ─────────────────────────────
-      // 6. Pagination
-      // ─────────────────────────────
+      { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: limit }
     ]);
 
-    // ─────────────────────────────
-    // COUNT (separate fast query)
-    // ─────────────────────────────
-    const total = await Teacher.countDocuments({
-      acceptanceStatus: 'pending'
-    });
+    const total = await Teacher.countDocuments({ acceptanceStatus: 'pending' });
 
     return res.status(200).json({
       status: 'success',
@@ -443,80 +389,37 @@ const getPendingTeachers = async (req, res) => {
 
   } catch (error) {
     console.error('getPendingTeachers error:', error);
-
-    return res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
+    return res.status(500).json({ status: 'error', message: error.message });
   }
 };
-/**
- * getTeacherFullProfile
- * Récupère le profil complet d'un enseignant + ses documents
- * Param: id_enseignant (Number, via URL)
- */
 
 const getTeacherFullProfile = async (req, res) => {
   try {
-    console.log(`Fetching full profile for teacher ID: ${req.params.id}`);
-    //afficher le type de id_enseignant
-    console.log(`Type of id_enseignant: ${typeof req.params.id}`);
-
     const teacherId = parseInt(req.params.id);
-    
 
-    // 0. Vérification ID
     if (!teacherId) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'ID enseignant invalide'
-      });
+      return res.status(400).json({ status: 'fail', message: 'ID enseignant invalide' });
     }
 
-    // 1. Récupérer Teacher
-    const teacher = await Teacher.findOne({
-      id_enseignant: teacherId,
-      
-    })
+    const teacher = await Teacher.findOne({ id_enseignant: teacherId })
       .populate('reviewedBy', 'firstname familyname')
       .select('-__v')
       .lean();
 
     if (!teacher) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Enseignant introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Enseignant introuvable' });
     }
-    console.log(`Teacher data for ID ${teacherId}:`, teacher);
-   
-    // 2. Récupérer User associé
-    const user = await User.findOne({
-      idmembre: teacherId,
-     
-    })
-      .select(`
-        firstname 
-        familyname 
-        email 
-        numberphone 
-        photo_profil 
-        createdAt
-      `)
+
+    const user = await User.findOne({ idmembre: teacherId })
+      .select('firstname familyname email numberphone photo_profil createdAt')
       .lean();
-      console.log(`User data for teacher ID ${teacherId}:`, user);
 
     if (!user) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Utilisateur associé introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Utilisateur associé introuvable' });
     }
 
-    // 3. Construire les documents depuis teacher (CV + Diplômes)
     const documents = [];
 
-    // CV
     if (teacher.documents?.cv?.url) {
       documents.push({
         type: 'cv',
@@ -525,7 +428,6 @@ const getTeacherFullProfile = async (req, res) => {
       });
     }
 
-    // Diplômes
     if (teacher.documents?.diplomes?.length > 0) {
       teacher.documents.diplomes.forEach(diplome => {
         documents.push({
@@ -539,7 +441,6 @@ const getTeacherFullProfile = async (req, res) => {
       });
     }
 
-    // 4. Réponse propre
     const pendingDocuments = [];
     if (teacher.pending_diplomes?.length > 0) {
       teacher.pending_diplomes.forEach((pending) => {
@@ -568,7 +469,6 @@ const getTeacherFullProfile = async (req, res) => {
         status: teacher.acceptanceStatus,
         reviewedBy: teacher.reviewedBy
       },
-
       user: {
         fullname: `${user.firstname} ${user.familyname}`,
         email: user.email,
@@ -576,60 +476,36 @@ const getTeacherFullProfile = async (req, res) => {
         photo: user.photo_profil,
         memberSince: user.createdAt
       },
-
       stats: {
         documentsCount: documents.length,
         pendingDocumentsCount: pendingDocuments.length,
         rating: teacher.rating,
         reviews: teacher.reviewsCount
       },
-
       documents,
       pendingDocuments
     };
 
-    return res.status(200).json({
-      status: 'success',
-      data: response
-    });
+    return res.status(200).json({ status: 'success', data: response });
 
   } catch (error) {
     console.error('getTeacherFullProfile error:', error);
-
-    return res.status(500).json({
-      status: 'error',
-      message: 'Erreur serveur'
-    });
+    return res.status(500).json({ status: 'error', message: 'Erreur serveur' });
   }
 };
 
-
-
-/**
- * acceptTeacher
- * Accepte un enseignant en attente
- * - Mise à jour: accepted: true, acceptanceStatus: 'accepted', reviewedAt, reviewedBy
- * - Notifie l'enseignant par email (fire-and-forget)
- * Param: id_enseignant (Number, via URL)
- */
 const acceptTeacher = async (req, res) => {
   try {
-    const { id } = req.params; // id_enseignant
-    const adminId = req.user._id; // Admin qui fait l'action
+    const { id } = req.params;
+    const adminId = req.user._id;
 
     if (!id) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'ID enseignant invalide'
-      });
+      return res.status(400).json({ status: 'fail', message: 'ID enseignant invalide' });
     }
 
     const teacher = await Teacher.findOne({ id_enseignant: parseInt(id, 10) });
     if (!teacher) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Enseignant introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Enseignant introuvable' });
     }
 
     teacher.accepted = true;
@@ -666,14 +542,6 @@ const acceptTeacher = async (req, res) => {
   }
 };
 
-/**
- * rejectTeacher
- * Rejette un enseignant en attente
- * - Body: { reason: string } — obligatoire
- * - Mise à jour: accepted: false, acceptanceStatus: 'rejected', rejectionReason, reviewedAt, reviewedBy
- * - Notifie l'enseignant par email avec raison du rejet (fire-and-forget)
- * Param: id_enseignant (Number, via URL)
- */
 const reviewTeacherDiplome = async (req, res) => {
   try {
     const { id, diplome_id } = req.params;
@@ -688,18 +556,12 @@ const reviewTeacherDiplome = async (req, res) => {
 
     const teacher = await Teacher.findOne({ id_enseignant: parseInt(id, 10) });
     if (!teacher) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Enseignant introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Enseignant introuvable' });
     }
 
     const pending = teacher.pending_diplomes.id(diplome_id);
     if (!pending) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Diplôme en attente introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Diplôme en attente introuvable' });
     }
 
     const pendingSubjects = Array.isArray(pending.subjects)
@@ -782,19 +644,14 @@ const reviewTeacherDiplome = async (req, res) => {
 
 const rejectTeacher = async (req, res) => {
   try {
-    const { id } = req.params; // id_enseignant
+    const { id } = req.params;
     const { reason } = req.body;
-    const adminId = req.user._id; // Admin qui fait l'action
+    const adminId = req.user._id;
 
-    // 1. Validate reason is provided
     if (!reason || reason.trim() === '') {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Raison de rejet obligatoire'
-      });
+      return res.status(400).json({ status: 'fail', message: 'Raison de rejet obligatoire' });
     }
 
-    // 2. Find and update teacher
     const teacher = await Teacher.findOneAndUpdate(
       { id_enseignant: parseInt(id) },
       {
@@ -808,13 +665,9 @@ const rejectTeacher = async (req, res) => {
     );
 
     if (!teacher) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Enseignant introuvable'
-      });
+      return res.status(404).json({ status: 'fail', message: 'Enseignant introuvable' });
     }
 
-    // 3. Get corresponding User to send email (fire-and-forget)
     const user = await User.findOne({ idmembre: parseInt(id) });
     if (user && user.email) {
       (async () => {
@@ -826,7 +679,6 @@ const rejectTeacher = async (req, res) => {
           });
         } catch (emailError) {
           console.error('Email notification failed:', emailError.message);
-          // Non-blocking — l'opération principal est déjà complétée
         }
       })();
     }

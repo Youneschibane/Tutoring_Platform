@@ -133,7 +133,9 @@ const getAllStudents = async (req, res) => {
     const page  = Math.max(1, parseInt(req.query.page)  || DEFAULT_PAGE);
     const limit = Math.min(MAX_LIMIT, parseInt(req.query.limit) || DEFAULT_LIMIT);
 
-    const pipeline      = buildPipeline({ studentQuery: {}, userQuery: {}, sortBy: 'createdAt', sortOrder: -1, page, limit });
+    const userQuery = { 'user.role': 'student' };
+
+    const pipeline      = buildPipeline({ studentQuery: {}, userQuery, sortBy: 'createdAt', sortOrder: -1, page, limit });
     const countPipeline = [...pipeline.slice(0, -2), { $count: 'total' }];
 
     const [students, countResult] = await Promise.all([
@@ -163,7 +165,7 @@ const searchStudents = async (req, res) => {
     }
 
     const studentQuery = {};
-    const userQuery    = {};
+    const userQuery    = { 'user.role': 'student' }; 
 
     for (const [key, value] of Object.entries(filters)) {
       if (value === undefined || value === null || value === '') continue;

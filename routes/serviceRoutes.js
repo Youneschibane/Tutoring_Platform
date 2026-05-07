@@ -20,8 +20,9 @@ router.delete('/deleteSession' ,protect , restrictTo('teacher') , serviceMethods
 router.get('/agenda', calendarMethods.getTeacherCalendar);
 router.get('/seanceById', protect, restrictTo('teacher'), serviceMethods.getSessionById);
 router.post('/:id_seance/documents',           protect, upload.single('document'), serviceMethods.addDocumentToSession);
-
+router.get('/:id_seance/students' , serviceMethods.getSessionStudents);
 // Delete session - teacher only
 router.post('/deleteSession', protect, restrictTo('teacher'), serviceMethods.deleteSession);
+
 
 module.exports = router;
