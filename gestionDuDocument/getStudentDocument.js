@@ -14,14 +14,20 @@ const getStudentDocuments = async (req, res) => {
     const pageNum  = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10));
 
-    // ── 1. Vérifier étudiant ─────────────────────────────
+    // ── 1. Vérifier l'étudiant ─────────────────────────────
     const student = await Student.findOne({ id_eleve: student_id }).select('_id');
     if (!student) {
       return res.status(404).json({ message: "Étudiant introuvable" });
     }
 
-    // ── 2. Récupérer les séances ─────────────────────────
-    const sessions = await Session.find({ etudiants: student._id })
+    // ── 2. Récupérer les séances (CORRIGÉ) ───────────────
+    // On cherche dans le tableau d'objets 'students'
+    const sessions = await Session.find({
+      $or: [
+        { "students.userId": student._id },
+        { "students.idmembre": Number(student_id) }
+      ]
+    })
       .select('_id service')
       .lean();
 
@@ -57,7 +63,7 @@ const getStudentDocuments = async (req, res) => {
 
       {
         $lookup: {
-          from: "services",
+          from: "services", // Assurez-vous que c'est le bon nom de collection
           localField: "service",
           foreignField: "_id",
           as: "service"
@@ -92,7 +98,7 @@ const getStudentDocuments = async (req, res) => {
         }
       },
 
-      // ──  supprimer services vides ────────────────────
+      // ── supprimer services vides ────────────────────
       {
         $match: {
           $or: [
@@ -103,11 +109,12 @@ const getStudentDocuments = async (req, res) => {
       }
     ];
 
-    // ── 5. Filtre keyword APRÈS groupement ───────────────
+    // ── 5. Filtre keyword APRÈS groupement (CORRIGÉ) ──────
     if (keyword && keyword.trim() !== '') {
       pipeline.push({
         $match: {
-          "service.nom": {
+          // Modifié de 'service.nom' à 'service.nom_service' selon votre schéma
+          "service.nom_service": {
             $regex: keyword.trim(),
             $options: "i"
           }
