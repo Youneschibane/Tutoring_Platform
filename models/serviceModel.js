@@ -69,17 +69,11 @@ serviceSchema.index({ nom_service: 'text', matiere: 'text' });
 serviceSchema.index({ prix: 1, niveau_concerne: 1 });
 serviceSchema.index({ 'archivedMeta.isArchived': 1, id_enseignant: 1 });
 
-// ── Pre-save : résoudre l'ObjectId de l'enseignant ──
-serviceSchema.pre('save', async function (next) {
-  try {
-    if (!this.id_enseignant_mongoose && this.id_enseignant) {
-      const User = mongoose.model('User');
-      const user = await User.findOne({ idmembre: this.id_enseignant });
-      if (user) this.id_enseignant_mongoose = user._id;
-    }
-    next();
-  } catch (err) {
-    next(err);
+serviceSchema.pre('save', async function () {
+  if (!this.id_enseignant_mongoose && this.id_enseignant) {
+    const User = mongoose.model('User');
+    const user = await User.findOne({ idmembre: this.id_enseignant });
+    if (user) this.id_enseignant_mongoose = user._id;
   }
 });
 
