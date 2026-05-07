@@ -17,12 +17,13 @@ const handleDeviceDetection = require('../utils/deviceDetection');
 const DUMMY_HASH = '$2b$12$LF2pOHq3PBnONQBFJMVnC.BbSNDTMRipqBR8eFoynF/BQDHpZIaWi';
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER — Sauvegarder le JWT sur le device
+// HELPER — Sauvegarder le JWT sur le device (fire-and-forget)
 // ═══════════════════════════════════════════════════════════════
-const saveTokenOnDevice = async ({ userId, device, token }) => {
+const saveTokenOnDevice = ({ userId, device, token }) => {
   const deviceToken = device?.deviceToken || `fallback-${Date.now()}`;
 
-  await Device.findOneAndUpdate(
+  // ✅ OPTIMISATION : on ne bloque plus la réponse sur cette écriture DB
+  Device.findOneAndUpdate(
     { userId, deviceToken },
     {
       jwtToken:   token,
@@ -31,30 +32,32 @@ const saveTokenOnDevice = async ({ userId, device, token }) => {
       deviceName: device?.deviceName || 'Appareil inconnu',
       location:   device?.location   || 'Position inconnue'
     },
-    { upsert: true, returnDocument: 'after' }
-  );
+    { upsert: true }
+  ).catch(e => console.error("saveTokenOnDevice error:", e.message));
 
-  return deviceToken;
+  return deviceToken; // retour synchrone — plus de await
 };
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER — Récupérer les données selon le rôle
+// ✅ OPTIMISATION : .lean() sur toutes les queries + Promise.all pour parent
 // ═══════════════════════════════════════════════════════════════
-const getRoleData = async (user) => {
+const getRoleData = (user) => {
   switch (user.role) {
     case 'teacher':
-      return await Teacher.findOne({ id_enseignant: user.idmembre });
+      return Teacher.findOne({ id_enseignant: user.idmembre }).lean();
     case 'student':
-      return await Student.findOne({ id_eleve: user.idmembre });
-    case 'parent': {
-      const parent = await Parent.findOne({ id_parent: user.idmembre }).populate('enfants');
-      const child  = await Student.findOne({ id_parent: user.idmembre });
-      return { parent, child };
-    }
+      return Student.findOne({ id_eleve: user.idmembre }).lean();
+    case 'parent':
+      // ✅ OPTIMISATION : 2 queries séquentielles → parallèles
+      return Promise.all([
+        Parent.findOne({ id_parent: user.idmembre }).populate('enfants').lean(),
+        Student.findOne({ id_parent: user.idmembre }).lean()
+      ]).then(([parent, child]) => ({ parent, child }));
     case 'admin':
-      return await Admin.findOne({ id_admin: user.idmembre });
+      return Admin.findOne({ id_admin: user.idmembre }).lean();
     default:
-      return null;
+      return Promise.resolve(null);
   }
 };
 
@@ -81,8 +84,9 @@ const signIn = async (req, res) => {
     if (phone) query.numberphone = phone.trim();
 
     // 3. Trouver l'utilisateur — exclure les admins
+    // ✅ OPTIMISATION : select() minimal pour réduire les données transférées
     const user = await User.findOne({ ...query, role: { $ne: 'admin' } })
-      .select('+password');
+      .select('+password role idmembre isActive email numberphone');
 
     // 4. Comparaison sécurisée (anti-timing attack)
     const hashToCompare = user ? user.password : DUMMY_HASH;
@@ -110,24 +114,22 @@ const signIn = async (req, res) => {
       { expiresIn: '90d' }
     );
 
-    // 7. Détection device + sauvegarde token
-    let device      = null;
-    let isNewDevice = false;
+    // ✅ OPTIMISATION MAJEURE : getRoleData + handleDeviceDetection en parallèle
+    const [roleData, deviceResult] = await Promise.all([
+      getRoleData(user),
+      handleDeviceDetection({ user, req }).catch(e => {
+        console.error("Device detection error:", e.message);
+        return null;
+      })
+    ]);
 
-    try {
-      const deviceResult = await handleDeviceDetection({ user, req });
-      device      = deviceResult?.device;
-      isNewDevice = deviceResult?.isNewDevice;
-    } catch (e) {
-      console.error("Device detection error:", e.message);
-    }
+    const device      = deviceResult?.device      ?? null;
+    const isNewDevice = deviceResult?.isNewDevice ?? false;
 
-    const deviceToken = await saveTokenOnDevice({ userId: user._id, device, token });
+    // ✅ OPTIMISATION : saveTokenOnDevice est fire-and-forget (non bloquant)
+    const deviceToken = saveTokenOnDevice({ userId: user._id, device, token });
 
-    // 8. Données du rôle
-    const roleData = await getRoleData(user);
-
-    // 9. Masquer le mot de passe
+    // 7. Masquer le mot de passe
     user.password = undefined;
 
     return res.status(200).json({
@@ -140,9 +142,9 @@ const signIn = async (req, res) => {
         device: {
           deviceToken,
           isNewDevice,
-          lastUsed:   device?.lastUsed   || new Date(),
-          deviceName: device?.deviceName || 'Appareil inconnu',
-          location:   device?.location   || 'Position inconnue'
+          lastUsed:   device?.lastUsed   ?? new Date(),
+          deviceName: device?.deviceName ?? 'Appareil inconnu',
+          location:   device?.location   ?? 'Position inconnue'
         }
       }
     });
@@ -172,17 +174,18 @@ const signInAdminStep1 = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 2. Trouver l'admin uniquement
-    const user = await User.findOne({
-      email: normalizedEmail,
-      role:  'admin'
-    }).select('+password');
+    // ✅ OPTIMISATION : user + existingOtp en parallèle
+    const [user, existingOtp] = await Promise.all([
+      User.findOne({ email: normalizedEmail, role: 'admin' })
+        .select('+password isActive email'),
+      Otp.findOne({ identifier: normalizedEmail, purpose: 'admin_signin' })
+        .select('createdAt').lean()
+    ]);
 
-    // 3. Comparaison sécurisée (anti-timing attack)
+    // 2. Comparaison sécurisée (anti-timing attack)
     const hashToCompare = user ? user.password : DUMMY_HASH;
     const passwordMatch = await bcrypt.compare(password, hashToCompare);
 
-    // 4. Message générique — ne pas révéler si le compte existe
     if (!user || !passwordMatch) {
       return res.status(401).json({
         status:  'fail',
@@ -190,7 +193,7 @@ const signInAdminStep1 = async (req, res) => {
       });
     }
 
-    // 5. Vérifier que le compte est actif
+    // 3. Vérifier que le compte est actif
     if (!user.isActive) {
       return res.status(403).json({
         status:  'fail',
@@ -198,16 +201,11 @@ const signInAdminStep1 = async (req, res) => {
       });
     }
 
-    // 6. Anti-spam : 1 minute entre chaque demande d'OTP
-    const existingOtp = await Otp.findOne({
-      identifier: user.email,
-      purpose:    'admin_signin'
-    });
-
+    // 4. Anti-spam : 1 minute entre chaque demande d'OTP
     if (existingOtp) {
       const elapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
-      if (elapsed < 60 * 1000) {
-        const remaining = Math.ceil((60 * 1000 - elapsed) / 1000);
+      if (elapsed < 60_000) {
+        const remaining = Math.ceil((60_000 - elapsed) / 1000);
         return res.status(429).json({
           status:  'fail',
           message: `Veuillez attendre ${remaining} secondes avant de demander un nouveau code.`
@@ -215,40 +213,39 @@ const signInAdminStep1 = async (req, res) => {
       }
     }
 
-    // 7. Générer OTP 6 chiffres
+    // 5. Générer + stocker l'OTP en une seule opération
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    // 8. Stocker l'OTP (écrase l'ancien)
-    await Otp.findOneAndUpdate(
-      { identifier: user.email, purpose: 'admin_signin' },
-      { otp, createdAt: new Date() },
-      { upsert: true, setDefaultsOnInsert: true }
-    );
-
-    // 9. Envoyer l'OTP par email
-    try {
-      await sendEmail({
+    // ✅ OPTIMISATION : upsert + envoi email en parallèle
+    await Promise.all([
+      Otp.findOneAndUpdate(
+        { identifier: user.email, purpose: 'admin_signin' },
+        { otp, createdAt: new Date() },
+        { upsert: true, setDefaultsOnInsert: true }
+      ),
+      sendEmail({
         email:   user.email,
         subject: "Code de vérification administrateur",
         message: `Votre code de connexion administrateur : ${otp}\n\nValide pendant 5 minutes.\n\nSi vous n'avez pas demandé cette connexion, ignorez ce message.`
-      });
-    } catch (emailError) {
-      console.error("Admin OTP email error:", emailError.message);
-      return res.status(500).json({
-        status:  'error',
-        message: "Impossible d'envoyer le code de vérification. Réessayez."
-      });
-    }
+      })
+    ]).catch(err => {
+      console.error("Admin OTP save/email error:", err.message);
+      throw err; // rethrow pour le catch global
+    });
 
     return res.status(200).json({
       status:  'success',
       message: "Code de vérification envoyé sur votre email.",
-      email:   user.email.replace(/(.{3}).*@/, '$1***@') // masquage partiel
+      email:   user.email.replace(/(.{3}).*@/, '$1***@')
     });
 
   } catch (error) {
     console.error("signInAdminStep1 error:", error.message);
-    return res.status(500).json({ status: 'error', message: "Erreur serveur." });
+    // Distinguer erreur d'envoi email vs erreur serveur générique
+    const message = error.message?.includes('email')
+      ? "Impossible d'envoyer le code de vérification. Réessayez."
+      : "Erreur serveur.";
+    return res.status(500).json({ status: 'error', message });
   }
 };
 
@@ -271,33 +268,20 @@ const signInAdminStep2 = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 2. Trouver l'admin
-    const user = await User.findOne({
-      email: normalizedEmail,
-      role:  'admin'
-    });
+    // ✅ OPTIMISATION : user + otpRecord en parallèle
+    const [user, otpRecord] = await Promise.all([
+      User.findOne({ email: normalizedEmail, role: 'admin' })
+        .select('isActive idmembre email'),
+      Otp.findOne({ identifier: normalizedEmail, purpose: 'admin_signin' })
+        .select('otp createdAt').lean()
+    ]);
 
     if (!user) {
-      return res.status(401).json({
-        status:  'fail',
-        message: "Identifiants incorrects."
-      });
+      return res.status(401).json({ status: 'fail', message: "Identifiants incorrects." });
     }
-
-    // 3. Vérifier que le compte est toujours actif
     if (!user.isActive) {
-      return res.status(403).json({
-        status:  'fail',
-        message: "Compte désactivé."
-      });
+      return res.status(403).json({ status: 'fail', message: "Compte désactivé." });
     }
-
-    // 4. Récupérer l'OTP en base
-    const otpRecord = await Otp.findOne({
-      identifier: user.email,
-      purpose:    'admin_signin'
-    });
-
     if (!otpRecord) {
       return res.status(401).json({
         status:  'fail',
@@ -305,66 +289,53 @@ const signInAdminStep2 = async (req, res) => {
       });
     }
 
-    // 5. Vérifier l'expiration (5 minutes)
+    // 2. Vérifier l'expiration (5 minutes)
     const elapsed = Date.now() - new Date(otpRecord.createdAt).getTime();
-    if (elapsed > 5 * 60 * 1000) {
-      await Otp.deleteOne({ _id: otpRecord._id });
+    if (elapsed > 5 * 60_000) {
+      // ✅ fire-and-forget : pas besoin d'attendre la suppression
+      Otp.deleteOne({ _id: otpRecord._id }).catch(() => {});
       return res.status(401).json({
         status:  'fail',
         message: "Code expiré. Recommencez la connexion."
       });
     }
 
-    // 6. Vérifier le code
+    // 3. Vérifier le code
     if (otpRecord.otp !== otp.toString().trim()) {
-      return res.status(401).json({
-        status:  'fail',
-        message: "Code incorrect."
-      });
+      return res.status(401).json({ status: 'fail', message: "Code incorrect." });
     }
 
-    // 7. Supprimer l'OTP — usage unique
-    await Otp.deleteOne({ _id: otpRecord._id });
-
-    // 8. Générer JWT admin (8h)
+    // 4. Générer JWT admin (8h)
     const token = jwt.sign(
       { id: user._id, role: 'admin' },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    // 9. Détection device + sauvegarde token
-    let device      = null;
-    let isNewDevice = false;
+    // ✅ OPTIMISATION MAJEURE : suppression OTP + adminData + deviceDetection en parallèle
+    const [, adminData, deviceResult] = await Promise.all([
+      Otp.deleteOne({ _id: otpRecord._id }),
+      Admin.findOne({ id_admin: user.idmembre }).lean(),
+      handleDeviceDetection({ user, req }).catch(e => {
+        console.error("Device detection error:", e.message);
+        return null;
+      })
+    ]);
 
-    try {
-      const deviceResult = await handleDeviceDetection({ user, req });
-      device      = deviceResult?.device;
-      isNewDevice = deviceResult?.isNewDevice;
-    } catch (e) {
-      console.error("Device detection error:", e.message);
-    }
+    const device      = deviceResult?.device      ?? null;
+    const isNewDevice = deviceResult?.isNewDevice ?? false;
 
-    const deviceToken = await saveTokenOnDevice({ userId: user._id, device, token });
+    // ✅ fire-and-forget : sauvegarde device non bloquante
+    const deviceToken = saveTokenOnDevice({ userId: user._id, device, token });
 
-    // 10. Données admin
-    const adminData = await Admin.findOne({ id_admin: user.idmembre });
+    // ✅ Notification de connexion — fire-and-forget (inchangé, déjà correct)
+    sendEmail({
+      email:   user.email,
+      subject: "Nouvelle connexion administrateur",
+      message: `Une connexion administrateur a été effectuée.\n\nAppareil : ${device?.deviceName || 'Inconnu'}\nLocalisation : ${device?.location || 'Inconnue'}\nDate : ${new Date().toLocaleString()}\n\nSi ce n'était pas vous, changez immédiatement votre mot de passe.`
+    }).catch(e => console.error("Admin login notification error:", e.message));
 
-    // 11. Masquer le mot de passe
     user.password = undefined;
-
-    // 12. Notification de connexion — fire and forget
-    (async () => {
-      try {
-        await sendEmail({
-          email:   user.email,
-          subject: "Nouvelle connexion administrateur",
-          message: `Une connexion administrateur a été effectuée.\n\nAppareil : ${device?.deviceName || 'Inconnu'}\nLocalisation : ${device?.location || 'Inconnue'}\nDate : ${new Date().toLocaleString()}\n\nSi ce n'était pas vous, changez immédiatement votre mot de passe.`
-        });
-      } catch (e) {
-        console.error("Admin login notification error:", e.message);
-      }
-    })();
 
     return res.status(200).json({
       status:  'success',
@@ -376,9 +347,9 @@ const signInAdminStep2 = async (req, res) => {
         device: {
           deviceToken,
           isNewDevice,
-          lastUsed:   device?.lastUsed   || new Date(),
-          deviceName: device?.deviceName || 'Appareil inconnu',
-          location:   device?.location   || 'Position inconnue'
+          lastUsed:   device?.lastUsed   ?? new Date(),
+          deviceName: device?.deviceName ?? 'Appareil inconnu',
+          location:   device?.location   ?? 'Position inconnue'
         }
       }
     });
@@ -407,12 +378,13 @@ const resendAdminOtp = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 1. Vérifier que l'admin existe et est actif
-    const user = await User.findOne({
-      email:    normalizedEmail,
-      role:     'admin',
-      isActive: true
-    });
+    // ✅ OPTIMISATION : user + existingOtp en parallèle
+    const [user, existingOtp] = await Promise.all([
+      User.findOne({ email: normalizedEmail, role: 'admin', isActive: true })
+        .select('email').lean(),
+      Otp.findOne({ identifier: normalizedEmail, purpose: 'admin_signin' })
+        .select('createdAt').lean()
+    ]);
 
     // Message générique si l'admin n'existe pas (sécurité)
     if (!user) {
@@ -422,16 +394,11 @@ const resendAdminOtp = async (req, res) => {
       });
     }
 
-    // 2. Anti-spam : 1 minute entre chaque renvoi
-    const existingOtp = await Otp.findOne({
-      identifier: user.email,
-      purpose:    'admin_signin'
-    });
-
+    // Anti-spam : 1 minute entre chaque renvoi
     if (existingOtp) {
       const elapsed = Date.now() - new Date(existingOtp.createdAt).getTime();
-      if (elapsed < 60 * 1000) {
-        const remaining = Math.ceil((60 * 1000 - elapsed) / 1000);
+      if (elapsed < 60_000) {
+        const remaining = Math.ceil((60_000 - elapsed) / 1000);
         return res.status(429).json({
           status:  'fail',
           message: `Veuillez attendre ${remaining} secondes avant de renvoyer un code.`
@@ -439,30 +406,25 @@ const resendAdminOtp = async (req, res) => {
       }
     }
 
-    // 3. Générer un nouvel OTP
+    // Générer un nouvel OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    // 4. Mettre à jour l'OTP en base (écrase le précédent)
-    await Otp.findOneAndUpdate(
-      { identifier: user.email, purpose: 'admin_signin' },
-      { otp, createdAt: new Date() },
-      { upsert: true, setDefaultsOnInsert: true }
-    );
-
-    // 5. Envoyer l'email
-    try {
-      await sendEmail({
+    // ✅ OPTIMISATION : upsert + envoi email en parallèle
+    await Promise.all([
+      Otp.findOneAndUpdate(
+        { identifier: user.email, purpose: 'admin_signin' },
+        { otp, createdAt: new Date() },
+        { upsert: true, setDefaultsOnInsert: true }
+      ),
+      sendEmail({
         email:   user.email,
         subject: "Nouveau code de vérification administrateur",
         message: `Votre nouveau code de connexion administrateur : ${otp}\n\nValide pendant 5 minutes.\n\nSi vous n'avez pas demandé ce code, ignorez ce message.`
-      });
-    } catch (emailError) {
-      console.error("resendAdminOtp email error:", emailError.message);
-      return res.status(500).json({
-        status:  'error',
-        message: "Erreur lors de l'envoi de l'email. Réessayez."
-      });
-    }
+      })
+    ]).catch(err => {
+      console.error("resendAdminOtp save/email error:", err.message);
+      throw err;
+    });
 
     return res.status(200).json({
       status:  'success',
