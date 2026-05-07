@@ -131,6 +131,7 @@ const getMySessionsStudent = async (req, res) => {
   }
 };
 
+
 module.exports = {
   getSessionParticipants,
   getMySessionsStudent
