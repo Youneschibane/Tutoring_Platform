@@ -57,7 +57,38 @@ const deviceToken = async (req, res) => {
   }
 };
 
+const toggleNotifications = async (req, res) => {
+  try {
+    const userId  = req.user._id;
+    const { enabled } = req.body; // true or false
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        status:  'fail',
+        message: "Le champ 'enabled' doit être un booléen (true ou false)."
+      });
+    }
+
+    const result = await Device.updateMany(
+      { userId, isActive: true },
+      { notificationsEnabled: enabled }
+    );
+
+    return res.status(200).json({
+      status:  'success',
+      message: enabled
+        ? 'Notifications activées avec succès.'
+        : 'Notifications désactivées avec succès.',
+      devicesUpdated: result.modifiedCount
+    });
+
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 module.exports = {
   revokeOtherDevices,
-  deviceToken
+  deviceToken,
+  toggleNotifications
 };
