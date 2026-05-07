@@ -115,16 +115,6 @@ const seanceSchema = new mongoose.Schema({
     type: String
   },
 
-documents: {
-  type: [{
-    url:        { type: String, required: true },
-    publicId:   { type: String, required: true },
-    nom:        String,
-    uploadedAt: { type: Date, default: Date.now }
-  }],
-  default: []    
-},
-
   // ── archive metadata ────────────────────────
   archivedMeta: {
     isArchived: {
