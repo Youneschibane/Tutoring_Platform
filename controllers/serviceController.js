@@ -11,6 +11,8 @@ const upload = multer({ storage: storage });
 const Seance   = require('../models/sessionModel');
 const Teacher  = require('../models/teacherModel');
 const cloudinary = require('../Config/cloudinaryConfig');
+const Eleve = require('../models/studentModel');
+const User = require('../models/userModel');
 
 const getAllowedCycles = (mainCycle) => {
   const hierarchy = {
@@ -732,7 +734,94 @@ const addDocumentToSession = async (req, res) => {
   }
 };
 
+const getSessionStudents = async (req, res) => {
+  try {
+    const { id_seance } = req.params;
 
+    const session = await Seance.findOne({ id_seance: parseInt(id_seance) })
+      .select('id_seance titre students date_seance heure_debut heure_fin statut')
+      .lean();
+
+    if (!session) {
+      return res.status(404).json({
+        status:  'fail',
+        message: 'Séance introuvable.'
+      });
+    }
+
+    const activeStudents = session.students.filter(s => !s.isDeleted);
+
+    if (activeStudents.length === 0) {
+      return res.status(200).json({
+        status:  'success',
+        total:   0,
+        session: {
+          id_seance:   session.id_seance,
+          titre:       session.titre,
+          date_seance: session.date_seance,
+          heure_debut: session.heure_debut,
+          heure_fin:   session.heure_fin,
+          statut:      session.statut
+        },
+        data: []
+      });
+    }
+
+    const idmembres = activeStudents.map(s => s.idmembre);
+
+    const eleves = await Eleve.find({ id_eleve: { $in: idmembres } }).lean();
+    const eleveMap = {};
+    eleves.forEach(e => { eleveMap[e.id_eleve] = e; });
+
+    const userIds = activeStudents.map(s => s.userId);
+    const users   = await User.find({ _id: { $in: userIds } })
+      .select('_id idmembre email numberphone photo_profil')
+      .lean();
+
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const students = activeStudents.map(s => {
+      const user  = userMap[s.userId.toString()];
+      const eleve = eleveMap[s.idmembre];
+
+      return {
+        userId:          s.userId,
+        idmembre:        s.idmembre,
+        joinedAt:        s.joinedAt,
+        firstname:       s.snapshot?.firstname  || null,
+        familyname:      s.snapshot?.familyname || null,
+        email:           user?.email            || null,
+        phone:           user?.numberphone      || null,
+        photo:           user?.photo_profil     || null,
+        niveau_scolaire: eleve?.niveau_scolaire ?? null,
+        yearOfStudy:     eleve?.yearOfStudy     ?? null,
+        speciality:      eleve?.speciality      ?? null,
+      };
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      total:  students.length,
+      session: {
+        id_seance:   session.id_seance,
+        titre:       session.titre,
+        date_seance: session.date_seance,
+        heure_debut: session.heure_debut,
+        heure_fin:   session.heure_fin,
+        statut:      session.statut
+      },
+      data: students
+    });
+
+  } catch (error) {
+    console.error('getSessionStudents error:', error);
+    return res.status(500).json({
+      status:  'error',
+      message: error.message
+    });
+  }
+};
 
 module.exports = {
   getProfSubjects,
@@ -745,5 +834,6 @@ module.exports = {
   deleteService,
   deleteSession,
   getSessionById,
-  addDocumentToSession 
+  addDocumentToSession ,
+  getSessionStudents
 }
