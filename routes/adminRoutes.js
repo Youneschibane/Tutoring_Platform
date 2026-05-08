@@ -71,5 +71,12 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
+router.get(
+    '/search-suggest', 
+    protect, 
+    restrictTo('admin'), 
+    adminController.getSearchSuggest
+);
+
 
 module.exports = router;
