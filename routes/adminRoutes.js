@@ -75,7 +75,7 @@ router.get(
     '/search-suggest', 
     protect, 
     restrictTo('admin'), 
-    adminController.getSearchSuggest
+    adminCtrl.getSearchSuggest
 );
 
 
