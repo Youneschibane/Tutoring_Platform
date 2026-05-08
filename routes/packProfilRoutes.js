@@ -12,12 +12,14 @@ const {
   updateProfileParent 
 } = require('../packProfil/updateProfile');
 const { requestPasswordChangeOtp, confirmPasswordChange } = require('../packProfil/updatePassword');
+const { getMyDevices } = require('../packProfil/Deconnexion');
 const { deleteAccount, reactivateAccount } = require('../packProfil/supprimerCompte');
 
 // ─────────────────────────────────────────────────────────────────────
 // PACK PROFIL ROUTES
 // ─────────────────────────────────────────────────────────────────────
-
+//
+router.get('/my-devices', protect, getMyDevices);
 /**
  * #swagger.tags = ['Pack Profil']
  * #swagger.summary = "Mettre à jour le profil utilisateur"
