@@ -163,7 +163,7 @@ const buildPipeline = ({
             description_pedagogique: 1,
             deplacement:             1,
             rayon_deplacement:       1,
-            photo_profil:            1,
+            photo_profil:            '$user.photo_profil',
             score:                   1,
             firstname:  '$user.firstname',
             familyname: '$user.familyname',
