@@ -79,7 +79,7 @@ exports.sendSignupOtp = async (req, res) => {
         ? sendEmail({
             email,
             subject: 'Votre code de vérification',
-            message: `Votre code de vérification est : ${newOtpCode}. Il est valide 10 minutes.`
+            message: `Votre code de vérification est : ${newOtpCode}.\n Il est valide 10 minutes.`
           })
         : sendSms({
             phone,
