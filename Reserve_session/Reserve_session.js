@@ -5,60 +5,61 @@ const User = require('../models/userModel');
 
 // ═══════════════════════════════════════════════════════════════
 // TIMEZONE CONFIG
+// Algeria is always UTC+1 (no DST)
 // ═══════════════════════════════════════════════════════════════
 
-const ALGERIA_TIMEZONE = 'Africa/Algiers';
+const ALGERIA_UTC_OFFSET = '+01:00';
 
 // ═══════════════════════════════════════════════════════════════
 // TIME HELPERS
 // ═══════════════════════════════════════════════════════════════
 
-const getCurrentAlgeriaDate = () => {
-  return new Date(
-    new Date().toLocaleString('en-US', {
-      timeZone: ALGERIA_TIMEZONE
-    })
-  );
-};
+/**
+ * Build start/end as proper UTC Date objects by treating
+ * heure_debut / heure_fin as Algeria local time (UTC+1).
+ * Works correctly regardless of server timezone (Render = UTC).
+ */
+const buildSessionDatesUTC = (session) => {
+  // Extract YYYY-MM-DD from the stored date, ignoring server TZ
+  const dateStr = new Date(session.date_seance)
+    .toISOString()
+    .split('T')[0];
 
-const buildSessionDates = (session) => {
-  const start = new Date(session.date_seance);
+  const pad = (n) => String(n).padStart(2, '0');
 
   const [startHour, startMinute] = session.heure_debut
     .split(':')
     .map(Number);
 
-  start.setHours(startHour, startMinute, 0, 0);
-
-  const end = new Date(session.date_seance);
-
   const [endHour, endMinute] = session.heure_fin
     .split(':')
     .map(Number);
 
-  end.setHours(endHour, endMinute, 0, 0);
+  // ISO 8601 with explicit +01:00 → JS parses to correct UTC
+  const start = new Date(
+    `${dateStr}T${pad(startHour)}:${pad(startMinute)}:00${ALGERIA_UTC_OFFSET}`
+  );
 
-  return {
-    start,
-    end
-  };
+  const end = new Date(
+    `${dateStr}T${pad(endHour)}:${pad(endMinute)}:00${ALGERIA_UTC_OFFSET}`
+  );
+
+  return { start, end };
 };
 
-// upcoming = pas encore terminée
-// past = terminée
-
+/**
+ * upcoming = pas encore terminée
+ * past     = terminée
+ */
 const getSessionStatus = (session) => {
-  const now = getCurrentAlgeriaDate();
-
-  const { end } = buildSessionDates(session);
-
+  const now = new Date(); // UTC, works on any server
+  const { end } = buildSessionDatesUTC(session);
   return now < end ? 'upcoming' : 'past';
 };
 
 const sortSessionsByStartDate = (a, b) => {
-  const { start: startA } = buildSessionDates(a);
-  const { start: startB } = buildSessionDates(b);
-
+  const { start: startA } = buildSessionDatesUTC(a);
+  const { start: startB } = buildSessionDatesUTC(b);
   return startA - startB;
 };
 
@@ -67,15 +68,9 @@ const sortSessionsByStartDate = (a, b) => {
 // ═══════════════════════════════════════════════════════════════
 
 const enrichSessionWithDeletedStatus = async (session) => {
-  if (
-    !session ||
-    !session.students ||
-    session.students.length === 0
-  ) {
-    const sessionObj = session.toObject
-      ? session.toObject()
-      : session;
+  const sessionObj = session.toObject ? session.toObject() : session;
 
+  if (!session?.students?.length) {
     return {
       ...sessionObj,
       participantsStatus: [],
@@ -83,32 +78,15 @@ const enrichSessionWithDeletedStatus = async (session) => {
     };
   }
 
-  const participantsStatus = [];
-
-  for (const student of session.students) {
-    participantsStatus.push({
-      userId: student.userId,
-      idmembre: student.idmembre,
-
-      firstname:
-        student.snapshot?.firstname || 'Inconnu',
-
-      familyname:
-        student.snapshot?.familyname || '',
-
-      isDeleted: student.isDeleted,
-
-      deletedAt: student.deletedAt,
-
-      status: student.isDeleted
-        ? 'account_deleted'
-        : 'active'
-    });
-  }
-
-  const sessionObj = session.toObject
-    ? session.toObject()
-    : session;
+  const participantsStatus = session.students.map((student) => ({
+    userId: student.userId,
+    idmembre: student.idmembre,
+    firstname: student.snapshot?.firstname || 'Inconnu',
+    familyname: student.snapshot?.familyname || '',
+    isDeleted: student.isDeleted,
+    deletedAt: student.deletedAt,
+    status: student.isDeleted ? 'account_deleted' : 'active'
+  }));
 
   return {
     ...sessionObj,
@@ -123,18 +101,11 @@ const enrichSessionWithDeletedStatus = async (session) => {
 
 const bookSession = async (req, res) => {
   try {
-    const {
-      session_id,
-      type_compte,
-      id_compte,
-      id_eleve
-    } = req.body;
+    const { session_id, type_compte, id_compte, id_eleve } = req.body;
 
     const numericIdSeance = Number(session_id);
     const numericIdCompte = Number(id_compte);
-    const numericIdEleve = id_eleve
-      ? Number(id_eleve)
-      : null;
+    const numericIdEleve = id_eleve ? Number(id_eleve) : null;
 
     let studentToBook;
     let userToEnroll;
@@ -144,43 +115,31 @@ const bookSession = async (req, res) => {
     // ───────────────────────────────────────────────────────────
 
     if (type_compte === 'parent') {
-      const parent = await Parent.findOne({
-        id_parent: numericIdCompte
-      });
+      const parent = await Parent.findOne({ id_parent: numericIdCompte });
 
       if (!parent) {
-        return res.status(404).json({
-          message: 'Parent introuvable'
-        });
+        return res.status(404).json({ message: 'Parent introuvable' });
       }
 
-      studentToBook = await Eleve.findOne({
-        id_eleve: numericIdEleve
-      });
+      studentToBook = await Eleve.findOne({ id_eleve: numericIdEleve });
 
       if (!studentToBook) {
-        return res.status(404).json({
-          message: 'Enfant introuvable'
-        });
+        return res.status(404).json({ message: 'Enfant introuvable' });
       }
 
       const isChild = parent.enfants.some(
         (item) =>
           item.student &&
-          item.student.toString() ===
-            studentToBook._id.toString()
+          item.student.toString() === studentToBook._id.toString()
       );
 
       if (!isChild) {
-        return res.status(403).json({
-          message:
-            "L'élève n'est pas lié à ce parent"
-        });
+        return res
+          .status(403)
+          .json({ message: "L'élève n'est pas lié à ce parent" });
       }
 
-      userToEnroll = await User.findOne({
-        idmembre: numericIdEleve
-      }).select(
+      userToEnroll = await User.findOne({ idmembre: numericIdEleve }).select(
         'firstname familyname role idmembre'
       );
     }
@@ -190,41 +149,29 @@ const bookSession = async (req, res) => {
     // ───────────────────────────────────────────────────────────
 
     else {
-      studentToBook = await Eleve.findOne({
-        id_eleve: numericIdCompte
-      });
+      studentToBook = await Eleve.findOne({ id_eleve: numericIdCompte });
 
       if (!studentToBook) {
-        return res.status(404).json({
-          message: 'Élève introuvable'
-        });
+        return res.status(404).json({ message: 'Élève introuvable' });
       }
 
-      userToEnroll = await User.findOne({
-        idmembre: numericIdCompte
-      }).select(
+      userToEnroll = await User.findOne({ idmembre: numericIdCompte }).select(
         'firstname familyname role idmembre'
       );
     }
 
     if (!userToEnroll) {
-      return res.status(404).json({
-        message: 'Utilisateur introuvable'
-      });
+      return res.status(404).json({ message: 'Utilisateur introuvable' });
     }
 
     // ───────────────────────────────────────────────────────────
     // GET SESSION
     // ───────────────────────────────────────────────────────────
 
-    const seance = await Seance.findOne({
-      id_seance: numericIdSeance
-    });
+    const seance = await Seance.findOne({ id_seance: numericIdSeance });
 
     if (!seance) {
-      return res.status(404).json({
-        message: 'Séance introuvable'
-      });
+      return res.status(404).json({ message: 'Séance introuvable' });
     }
 
     // ───────────────────────────────────────────────────────────
@@ -233,16 +180,14 @@ const bookSession = async (req, res) => {
 
     const alreadyEnrolled = seance.students.some(
       (student) =>
-        student.userId.toString() ===
-          userToEnroll._id.toString() &&
+        student.userId.toString() === userToEnroll._id.toString() &&
         !student.isDeleted
     );
 
     if (alreadyEnrolled) {
-      return res.status(400).json({
-        message:
-          'Élève déjà inscrit à cette séance'
-      });
+      return res
+        .status(400)
+        .json({ message: 'Élève déjà inscrit à cette séance' });
     }
 
     // ───────────────────────────────────────────────────────────
@@ -251,44 +196,31 @@ const bookSession = async (req, res) => {
 
     seance.students.push({
       userId: userToEnroll._id,
-
       idmembre: userToEnroll.idmembre,
-
       snapshot: {
         firstname: userToEnroll.firstname,
         familyname: userToEnroll.familyname,
         role: userToEnroll.role
       },
-
       joinedAt: new Date(),
-
       isDeleted: false,
-
       deletedAt: null
     });
 
     seance.statut = 'confirmee';
 
     const updatedSeance = await seance.save();
-
     const enrichedSeance =
-      await enrichSessionWithDeletedStatus(
-        updatedSeance
-      );
+      await enrichSessionWithDeletedStatus(updatedSeance);
 
     return res.status(201).json({
       success: true,
       message: 'Inscription réussie',
       session: enrichedSeance
     });
-
   } catch (error) {
     console.error('BOOK SESSION ERROR:', error);
-
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -300,83 +232,40 @@ const getPastSessions = async (req, res) => {
   try {
     const { id_eleve } = req.body;
 
-    // ───────────────────────────────────────────────────────────
-    // CHECK STUDENT
-    // ───────────────────────────────────────────────────────────
-
-    const student = await Eleve.findOne({
-      id_eleve
-    }).lean();
+    const student = await Eleve.findOne({ id_eleve }).lean();
 
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Élève non trouvé'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Élève non trouvé' });
     }
 
-    // ───────────────────────────────────────────────────────────
-    // CHECK USER
-    // ───────────────────────────────────────────────────────────
-
-    const user = await User.findOne({
-      idmembre: id_eleve
-    })
+    const user = await User.findOne({ idmembre: id_eleve })
       .select('_id')
       .lean();
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Utilisateur non trouvé'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Utilisateur non trouvé' });
     }
-
-    // ───────────────────────────────────────────────────────────
-    // GET SESSIONS
-    // ───────────────────────────────────────────────────────────
 
     const sessions = await Seance.find({
       'students.userId': user._id,
-
-      'students.isDeleted': {
-        $ne: true
-      },
-
-      'archivedMeta.isArchived': {
-        $ne: true
-      }
+      'students.isDeleted': { $ne: true },
+      'archivedMeta.isArchived': { $ne: true }
     })
-      .populate(
-        'service',
-        'nom description type_service matiere'
-      )
-      .populate(
-        'enseignant',
-        'firstname familyname'
-      )
+      .populate('service', 'nom description type_service matiere')
+      .populate('enseignant', 'firstname familyname')
       .lean();
 
-    // ───────────────────────────────────────────────────────────
-    // FILTER PAST SESSIONS
-    // ───────────────────────────────────────────────────────────
-
     const pastSessions = sessions
-      .filter(
-        (session) =>
-          getSessionStatus(session) === 'past'
-      )
+      .filter((session) => getSessionStatus(session) === 'past')
       .sort(sortSessionsByStartDate)
       .reverse();
 
-    // ───────────────────────────────────────────────────────────
-    // ENRICH
-    // ───────────────────────────────────────────────────────────
-
     const enrichedSessions = await Promise.all(
-      pastSessions.map((session) =>
-        enrichSessionWithDeletedStatus(session)
-      )
+      pastSessions.map((session) => enrichSessionWithDeletedStatus(session))
     );
 
     return res.status(200).json({
@@ -384,17 +273,9 @@ const getPastSessions = async (req, res) => {
       count: enrichedSessions.length,
       sessions: enrichedSessions
     });
-
   } catch (error) {
-    console.error(
-      'GET PAST SESSIONS ERROR:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('GET PAST SESSIONS ERROR:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -406,87 +287,40 @@ const getUpcomingSessions = async (req, res) => {
   try {
     const { id_eleve } = req.body;
 
-    // ───────────────────────────────────────────────────────────
-    // CHECK STUDENT
-    // ───────────────────────────────────────────────────────────
-
-    const student = await Eleve.findOne({
-      id_eleve
-    }).lean();
+    const student = await Eleve.findOne({ id_eleve }).lean();
 
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Élève non trouvé'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Élève non trouvé' });
     }
 
-    // ───────────────────────────────────────────────────────────
-    // CHECK USER
-    // ───────────────────────────────────────────────────────────
-
-    const user = await User.findOne({
-      idmembre: id_eleve
-    })
+    const user = await User.findOne({ idmembre: id_eleve })
       .select('_id')
       .lean();
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Utilisateur non trouvé'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Utilisateur non trouvé' });
     }
-
-    // ───────────────────────────────────────────────────────────
-    // GET SESSIONS
-    // ───────────────────────────────────────────────────────────
 
     const sessions = await Seance.find({
       'students.userId': user._id,
-
-      'students.isDeleted': {
-        $ne: true
-      },
-
-      statut: {
-        $in: ['confirmee', 'reportee']
-      },
-
-      'archivedMeta.isArchived': {
-        $ne: true
-      }
+      'students.isDeleted': { $ne: true },
+      statut: { $in: ['confirmee', 'reportee'] },
+      'archivedMeta.isArchived': { $ne: true }
     })
-      .populate(
-        'service',
-        'nom description type_service matiere'
-      )
-      .populate(
-        'enseignant',
-        'firstname familyname'
-      )
+      .populate('service', 'nom description type_service matiere')
+      .populate('enseignant', 'firstname familyname')
       .lean();
 
-    // ───────────────────────────────────────────────────────────
-    // FILTER UPCOMING
-    // ───────────────────────────────────────────────────────────
-
     const upcomingSessions = sessions
-      .filter(
-        (session) =>
-          getSessionStatus(session) ===
-          'upcoming'
-      )
+      .filter((session) => getSessionStatus(session) === 'upcoming')
       .sort(sortSessionsByStartDate);
 
-    // ───────────────────────────────────────────────────────────
-    // ENRICH
-    // ───────────────────────────────────────────────────────────
-
     const enrichedSessions = await Promise.all(
-      upcomingSessions.map((session) =>
-        enrichSessionWithDeletedStatus(session)
-      )
+      upcomingSessions.map((session) => enrichSessionWithDeletedStatus(session))
     );
 
     return res.status(200).json({
@@ -494,17 +328,9 @@ const getUpcomingSessions = async (req, res) => {
       count: enrichedSessions.length,
       sessions: enrichedSessions
     });
-
   } catch (error) {
-    console.error(
-      'GET UPCOMING SESSIONS ERROR:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('GET UPCOMING SESSIONS ERROR:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -518,63 +344,30 @@ const getSessionDetail = async (req, res) => {
 
     const numericIdSeance = Number(id_seance);
 
-    const seance = await Seance.findOne({
-      id_seance: numericIdSeance
-    })
-      .populate(
-        'service',
-        'nom description type_service matiere'
-      )
-      .populate(
-        'enseignant',
-        'firstname familyname'
-      )
+    const seance = await Seance.findOne({ id_seance: numericIdSeance })
+      .populate('service', 'nom description type_service matiere')
+      .populate('enseignant', 'firstname familyname')
       .lean();
 
     if (!seance) {
-      return res.status(404).json({
-        success: false,
-        message: 'Séance introuvable'
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Séance introuvable' });
     }
 
-    // ───────────────────────────────────────────────────────────
-    // TEACHER STATUS
-    // ───────────────────────────────────────────────────────────
+    const teacherStatus = seance.archivedMeta?.isArchived
+      ? 'no_longer_active'
+      : 'active';
 
-    const teacherStatus =
-      seance.archivedMeta?.isArchived
-        ? 'no_longer_active'
-        : 'active';
-
-    // ───────────────────────────────────────────────────────────
-    // ENRICH SESSION
-    // ───────────────────────────────────────────────────────────
-
-    const enrichedSeance =
-      await enrichSessionWithDeletedStatus(
-        seance
-      );
+    const enrichedSeance = await enrichSessionWithDeletedStatus(seance);
 
     return res.status(200).json({
       success: true,
-
-      data: {
-        seance: enrichedSeance,
-        teacherStatus
-      }
+      data: { seance: enrichedSeance, teacherStatus }
     });
-
   } catch (error) {
-    console.error(
-      'GET SESSION DETAIL ERROR:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('GET SESSION DETAIL ERROR:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -584,14 +377,9 @@ const getSessionDetail = async (req, res) => {
 
 module.exports = {
   bookSession,
-
   getPastSessions,
-
   getUpcomingSessions,
-
   getSessionDetail,
-
   enrichSessionWithDeletedStatus,
-
   getSessionStatus
 };
