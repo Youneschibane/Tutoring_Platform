@@ -626,6 +626,125 @@ try {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CONFIRM SESSION AS "ASSUREE" - Mark session as completed/assured
+// ═══════════════════════════════════════════════════════════════
+const confirmSession = async (req, res) => {
+  try {
+    const { id_seance } = req.params || req.query;
+    const id_enseignant_auth = req.user.idmembre;
+
+    // Validation
+    if (!id_seance) {
+      return res.status(400).json({
+        status: "fail",
+        message: "L'ID de la séance est requis."
+      });
+    }
+
+    const numericIdSeance = Number(id_seance);
+
+    // Find session
+    const seance = await Session.findOne({ id_seance: numericIdSeance })
+      .populate('enseignant', '_id id_enseignant');
+
+    if (!seance) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Séance introuvable."
+      });
+    }
+
+    // Verify teacher ownership
+    const profDoc = await prof.findOne({ id_enseignant: id_enseignant_auth });
+    if (!profDoc || String(seance.enseignant._id) !== String(profDoc._id)) {
+      return res.status(403).json({
+        status: "fail",
+        message: "Accès refusé : Vous n'êtes pas propriétaire de cette séance."
+      });
+    }
+
+    // Verify session is in "libre" or "confirmee" status
+    if (!["libre", "confirmee"].includes(seance.statut)) {
+      return res.status(400).json({
+        status: "fail",
+        message: `Impossible de confirmer une séance au statut "${seance.statut}". Seules les séances "libre" ou "confirmee" peuvent être confirmées.`
+      });
+    }
+
+    // Calculate session end time
+    const sessionDate = new Date(seance.date_seance);
+    const [heure, minute] = seance.heure_fin.split(':');
+    sessionDate.setHours(parseInt(heure), parseInt(minute), 0, 0);
+
+    const now = new Date();
+
+    // Verify session has passed
+    if (now <= sessionDate) {
+      return res.status(400).json({
+        status: "fail",
+        message: `La séance n'est pas encore terminée. Elle se terminera à ${seance.heure_fin}. Vous pourrez la confirmer après cette heure.`
+      });
+    }
+
+    // Update status to "assuree"
+    seance.statut = "assuree";
+    await seance.save();
+
+    // Optional: Send notifications to students
+    try {
+      const studentUserIds = seance.students
+        .filter(s => !s.isDeleted)
+        .map(s => s.userId);
+
+      if (studentUserIds.length > 0) {
+        const devices = await Device.find({
+          userId: { $in: studentUserIds },
+          isActive: true,
+          deviceToken: /^ExponentPushToken/
+        });
+
+        const notifTitle = 'Séance confirmée';
+        const notifBody = `La séance "${seance.titre}" a été confirmée comme assuree.`;
+
+        const pushPromises = devices.map(device =>
+          sendExpoPush(device.deviceToken, {
+            title: notifTitle,
+            body: notifBody,
+            url: '/sessions',
+            extra: { type: 'session_confirmed', id_seance: seance.id_seance }
+          }).catch(err => console.error('Push failed:', err.message))
+        );
+
+        await Promise.all(pushPromises);
+      }
+    } catch (notifError) {
+      console.error('Erreur notification:', notifError.message);
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Séance confirmée comme assuree avec succès.",
+      data: {
+        id_seance: seance.id_seance,
+        titre: seance.titre,
+        statut: seance.statut,
+        date_seance: seance.date_seance,
+        heure_debut: seance.heure_debut,
+        heure_fin: seance.heure_fin,
+        confirmedAt: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error confirming session:', error);
+    res.status(500).json({
+      status: "error",
+      message: error.message
+    });
+  }
+};
+
 const deleteSession = async (req, res) => {
   try {
     const { id_seance } = req.query;
@@ -832,6 +951,7 @@ module.exports = {
   getServiceSessions,
   updateService,
   updateSession, 
+  confirmSession,
   deleteService,
   deleteSession,
   getSessionById,
