@@ -159,37 +159,60 @@ const getPastSessions = async (req, res) => {
 const getUpcomingSessions = async (req, res) => {
   try {
     const { id_eleve } = req.body;
-    const student = await Eleve.findOne({ id_eleve });
-    if (!student) return res.status(404).json({ message: 'Élève non trouvé' });
 
-    // Fetch the User associated with this student
-    const user = await User.findOne({ idmembre: id_eleve });
-    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    // ── 1. Vérifications ────────────────────────────────────────────────────
+    const student = await Eleve.findOne({ id_eleve }).lean();
+    if (!student) return res.status(404).json({ message: "Élève non trouvé" });
 
+    const user = await User.findOne({ idmembre: id_eleve }).select("_id").lean();
+    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé" });
+
+    // ── 2. Fenêtre DB : depuis minuit aujourd'hui ───────────────────────────
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // ── 3. Requête Mongo ────────────────────────────────────────────────────
     const sessions = await Seance.find({
-      'students.userId': user._id,
-      statut: { $in: ['confirmee', 'reportee'] },
-      date_seance: { $gte: new Date() },
-      'archivedMeta.isArchived': { $ne: true }
+      "students.userId"       : user._id,
+      "students.isDeleted"    : { $ne: true },        // exclure les élèves supprimés
+      statut                  : { $in: ["confirmee", "reportee"] },
+      date_seance             : { $gte: startOfToday },
+      "archivedMeta.isArchived": { $ne: true }
     })
-    .populate('service', 'nom description')
-    .populate('enseignant', 'firstname familyname')
-    .sort({ date_seance: 1 });
+      .populate("service",    "nom description")
+      .populate("enseignant", "firstname familyname")
+      .lean();                                         // objets JS purs → plus rapide
 
+    // ── 4. Utilitaire : date_seance + heure_debut → Date complet ───────────
+    //    heure_debut est stocké "HH:mm" (String, required dans le schéma)
+    const toFullDate = ({ date_seance, heure_debut }) => {
+      const d = new Date(date_seance);
+      const [h, m] = heure_debut.split(":").map(Number);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+
+    // ── 5. Filtre précis + tri ──────────────────────────────────────────────
+    const upcomingSessions = sessions
+      .filter(s => toFullDate(s) > now)               // séances pas encore commencées
+      .sort((a, b) => toFullDate(a) - toFullDate(b)); // plus proche → plus loin
+
+    // ── 6. Enrichissement (statut isDeleted, etc.) ──────────────────────────
     const enrichedSessions = await Promise.all(
-      sessions.map(s => enrichSessionWithDeletedStatus(s))
+      upcomingSessions.map(s => enrichSessionWithDeletedStatus(s))
     );
 
     return res.status(200).json({
-      success: true,
-      count: enrichedSessions.length,
+      success : true,
+      count   : enrichedSessions.length,
       sessions: enrichedSessions
     });
+
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-
 // ═══════════════════════════════════════════════════════════════
 // GET SESSION DETAIL WITH TEACHER STATUS
 // ═══════════════════════════════════════════════════════════════
