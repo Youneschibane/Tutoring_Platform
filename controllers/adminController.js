@@ -158,3 +158,35 @@ exports.getReportById = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+// Fonction de recherche dynamique pour l'auto-suggestion
+exports.getSearchSuggest = async (req, res) => {
+    try {
+        const { query } = req.query;
+
+        if (!query) {
+            return res.status(200).json([]);
+        }
+
+        
+        const searchRegex = new RegExp('^' + query, 'i');
+
+        const users = await User.find({
+            $or: [
+                { firstname: searchRegex },
+                { familyname: searchRegex },
+                { email: searchRegex }
+            ],
+            isDeleted: { $ne: true } 
+        })
+        .select('firstname familyname email photo_profil') 
+        .limit(10);
+
+        res.status(200).json(users);
+    } catch (err) {
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+};
