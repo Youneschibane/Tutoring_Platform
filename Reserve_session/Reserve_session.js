@@ -250,10 +250,12 @@ const getPastSessions = async (req, res) => {
         .json({ success: false, message: 'Utilisateur non trouvé' });
     }
 
+    // Only include completed (assuree) or cancelled (annulee) sessions
     const sessions = await Seance.find({
       'students.userId': user._id,
       'students.isDeleted': { $ne: true },
-      'archivedMeta.isArchived': { $ne: true }
+      'archivedMeta.isArchived': { $ne: true },
+      statut: { $in: ['assuree', 'annulee'] }
     })
       .populate('service', 'nom description type_service matiere')
       .populate('enseignant', 'firstname familyname')
@@ -305,10 +307,11 @@ const getUpcomingSessions = async (req, res) => {
         .json({ success: false, message: 'Utilisateur non trouvé' });
     }
 
+    // Only include pending, confirmed, or rescheduled sessions (not completed/assured or cancelled/annulee)
     const sessions = await Seance.find({
       'students.userId': user._id,
       'students.isDeleted': { $ne: true },
-      statut: { $in: ['confirmee', 'reportee'] },
+      statut: { $in: ['libre', 'confirmee', 'reportee'] },
       'archivedMeta.isArchived': { $ne: true }
     })
       .populate('service', 'nom description type_service matiere')
