@@ -108,3 +108,62 @@ exports.getMyDevices = async (req, res) => {
   }
 };
 
+/**
+ * Logout from a specific device
+ * Takes deviceId from request body and logs out only that device
+ */
+exports.logoutFromDevice = async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+
+    // Validate deviceId is provided
+    if (!deviceId) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'deviceId est requis'
+      });
+    }
+
+    // Verify the device belongs to the current user
+    const device = await Device.findOne({
+      _id: deviceId,
+      userId: req.user.id
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Appareil non trouvé ou vous n\'avez pas la permission de le déconnecter.'
+      });
+    }
+
+    // Prevent user from logging out their current device via this endpoint
+    // (should use logout endpoint instead)
+    if (device._id.toString() === req.device._id.toString()) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Utilisez le point de terminaison /logout pour déconnecter l\'appareil courant.'
+      });
+    }
+
+    // Log out the specific device
+    await Device.findByIdAndUpdate(deviceId, {
+      jwtToken: null,
+      isActive: false,
+      lastUsed: new Date()
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: `Appareil "${device.deviceName}" déconnecté avec succès.`
+    });
+
+  } catch (error) {
+    console.error('LogoutFromDevice error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
