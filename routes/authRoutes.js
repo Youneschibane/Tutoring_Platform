@@ -10,6 +10,7 @@ const controller          = require('../Sign_In_Up/Controller');
 const { logout } = require('../packProfil/Deconnexion');
 const {  logoutOtherDevices } = require('../packProfil/Deconnexion');
 const logoutController = require('../packProfil/Deconnexion');
+const { logoutFromDevice } = require('../packProfil/Deconnexion');
 const upload=require('../middleware/upload');
 const {toggleNotifications} = require('../controllers/deviceController')
 
@@ -55,6 +56,33 @@ router.post('/logout-other-devices', protect, logoutOtherDevices);
  * #swagger.responses[500] = { description: "Internal Server Error" }
  */
 router.post('/logout-all',           protect, logoutController.logoutAll);
+
+/**
+ * #swagger.tags = ['Authentication']
+ * #swagger.summary = "Déconnecter un appareil spécifique"
+ * #swagger.description = "Déconnecter un appareil spécifique parmi les appareils connectés"
+ * #swagger.security = [{"bearerAuth": []}]
+ * #swagger.requestBody = {
+ *   required: true,
+ *   content: {
+ *     "application/json": {
+ *       schema: {
+ *         type: "object",
+ *         required: ["deviceId"],
+ *         properties: {
+ *           deviceId: { type: "string", description: "L'ID de l'appareil à déconnecter" }
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ * #swagger.responses[200] = { description: "OK — appareil déconnecté" }
+ * #swagger.responses[400] = { description: "Bad Request — deviceId requis ou tentative de déconnecter l'appareil courant" }
+ * #swagger.responses[401] = { description: "Unauthorized — token invalide" }
+ * #swagger.responses[404] = { description: "Not Found — appareil non trouvé" }
+ * #swagger.responses[500] = { description: "Internal Server Error" }
+ */
+router.post('/logout-device', protect, logoutFromDevice);
 
 
 // Signup / Signin (No middleware - public endpoints)
