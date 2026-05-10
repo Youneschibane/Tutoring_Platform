@@ -5,6 +5,7 @@ const Student = require('../models/studentModel');
 const Parent  = require('../models/parentModel');
 const Admin   = require('../models/adminModel');
 const cloudinary = require('cloudinary').v2;
+const { cityToCoordinates, validateCoordinates } = require('../utils/geocoding');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER — Extraire le publicId Cloudinary depuis une URL
@@ -35,7 +36,7 @@ const ROLE_CONFIGS = {
     idField:       'id_enseignant',
     roleName:      'enseignant',
     allowedFields: [
-      'nature', 'latitude', 'longitude', 'deplacement',
+      'nature', 'latitude', 'longitude', 'city', 'deplacement',
       'rayon_deplacement', 'description_pedagogique',
       'actif', 'subjects', 'modalite', 'online'
     ]
@@ -154,6 +155,29 @@ const performUpdate = async (req, res, roleConfig) => {
         roleUpdates[field] = parseFloat(extraFields[field]);
       } else {
         roleUpdates[field] = extraFields[field];
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // 5B. TEACHER-SPECIFIC: CITY TO COORDINATES
+    // ─────────────────────────────────────────
+    if (roleConfig.roleName === 'enseignant' && extraFields.city && extraFields.city.trim()) {
+      try {
+        const geoData = await cityToCoordinates(extraFields.city);
+        roleUpdates.city = geoData.city;
+        roleUpdates.latitude = geoData.latitude;
+        roleUpdates.longitude = geoData.longitude;
+
+        console.log(`✓ Teacher profile update: City "${geoData.city}" → [${geoData.latitude}, ${geoData.longitude}]`);
+      } catch (geoError) {
+        // Log warning but don't block update — proceed with existing coordinates
+        console.warn(`⚠ Geocoding failed for city "${extraFields.city}": ${geoError.message}`);
+
+        // If coordinates were explicitly provided in the request, use them; otherwise leave unchanged
+        if (!extraFields.latitude && !extraFields.longitude) {
+          // Don't fail — allow update without coordinates
+          console.warn(`⚠ Proceeding with profile update without new coordinates`);
+        }
       }
     }
 
