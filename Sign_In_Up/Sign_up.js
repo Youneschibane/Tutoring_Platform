@@ -14,6 +14,7 @@ const jwt      = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const UAParser = require('ua-parser-js');
 const geoip    = require('geoip-lite');
+const { cityToCoordinates, validateCoordinates } = require('../utils/geocoding');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
@@ -208,12 +209,36 @@ exports.completeProfile = async (req, res) => {
       if (!cv)            throw new Error("Le CV est obligatoire pour les enseignants.");
       if (!diplomes.length) throw new Error("Au moins un diplôme est obligatoire pour les enseignants.");
 
+      let latitude = 0;
+      let longitude = 0;
+      let city = profileData.city ? profileData.city.trim() : null;
+
+      // ─────────────────────────────────────────
+      // GEOCODING: Convert city to coordinates
+      // ─────────────────────────────────────────
+      if (city) {
+        try {
+          const geoData = await cityToCoordinates(city);
+          latitude = geoData.latitude;
+          longitude = geoData.longitude;
+          city = geoData.city; // Normalized city name
+
+          console.log(`✓ Geocoding: "${geoData.city}" → [${latitude}, ${longitude}]`);
+        } catch (geoError) {
+          // Log warning but don't block signup — coordinates default to 0, 0
+          console.warn(`⚠ Geocoding failed for city "${city}": ${geoError.message}`);
+        }
+      }
+
       const teacher = await Teacher.create([{
         ...baseData,
         id_enseignant:    idmembre,
         accepted:         false,
         acceptanceStatus: 'pending',
         photo_profil:     photoProfilUrl,
+        city,
+        latitude,
+        longitude,
         documents: { cv, diplomes }
       }], { session });
 
