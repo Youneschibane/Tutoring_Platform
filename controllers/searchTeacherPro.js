@@ -1,150 +1,240 @@
-const Teacher = require('../models/teacherModel');
+const Service = require('../models/serviceModel');
 const User    = require('../models/userModel');
-const axios   = require('axios');
+const Teacher = require('../models/teacherModel');
 
 // =========================
 // CONSTANTS
 // =========================
-const DEFAULT_RADIUS = 10000;
-const DEFAULT_PAGE   = 1;
-const DEFAULT_LIMIT  = 20;
-const EARTH_RADIUS   = 6378137;
+const DEFAULT_PAGE  = 1;
+const DEFAULT_LIMIT = 10;
 
-const ALLOWED_SORT_FIELDS = ['score', 'rating', 'reviewsCount', 'date_creation'];
+const ALLOWED_SORT_FIELDS = [
+  'score', 'rating', 'reviewsCount', 'date_creation'
+];
 
-const TEACHER_FIELDS = new Set([
-  'nature', 'deplacement', 'rayon_deplacement',
-  'description_pedagogique', 'actif', 'rating',
-  'reviewsCount', 'online', 'modalite'
-]);
-
-const USER_FIELDS    = new Set(['firstname', 'familyname', 'email', 'numberphone', 'postaladr']);
-const SUBJECT_FIELDS = new Set(['subjects']);
+const NIVEAU_MAP = {
+  'Primaire': 'Primaire',
+  'Collège':  'College',
+  'Lycée':    'Lycee',
+  'ESI':      'ESI'
+};
 
 // =========================
-// CITY → GEO
+// UTILS
 // =========================
-const getCoordinatesFromCity = async (city) => {
-  try {
-    const res = await axios.get(
-      'https://nominatim.openstreetmap.org/search',
+const escapeRegex = (str) =>
+  str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// =========================
+// RESOLVERS (Same as yours)
+// =========================
+const resolveTeacherIdsByName = async (query) => {
+  if (!query) return null;
+
+  const safe  = escapeRegex(query);
+  const regex = new RegExp(safe, 'i');
+
+  const users = await User.find({
+    role: 'teacher',
+    $or: [
+      { firstname:  regex },
+      { familyname: regex },
       {
-        params:  { q: city, format: 'json', limit: 1 },
-        headers: { 'User-Agent': 'teacher-search-api' },
-        timeout: 5000
+        $expr: {
+          $regexMatch: {
+            input:   { $concat: ['$firstname', ' ', '$familyname'] },
+            regex:   safe,
+            options: 'i'
+          }
+        }
+      },
+      {
+        $expr: {
+          $regexMatch: {
+            input:   { $concat: ['$familyname', ' ', '$firstname'] },
+            regex:   safe,
+            options: 'i'
+          }
+        }
       }
-    );
+    ]
+  }).select('idmembre').lean();
 
-    if (!res.data?.length) throw new Error("Ville introuvable.");
+  return users.map(u => u.idmembre);
+};
 
-    return [parseFloat(res.data[0].lon), parseFloat(res.data[0].lat)];
-  } catch (err) {
-    throw new Error("Erreur de géolocalisation : " + err.message);
+const resolveTeacherIdsByGeo = async ({ lat, lng, radius, city }) => {
+  if (lat && lng && radius) {
+    const teachers = await Teacher.find({
+      location: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [Number(lng), Number(lat)] },
+          $maxDistance: Number(radius)
+        }
+      }
+    }).select('id_enseignant').lean();
+
+    return teachers.map(t => t.id_enseignant);
   }
+
+  if (city) {
+    const teachers = await Teacher.find({
+      ville: { $regex: escapeRegex(city), $options: 'i' }
+    }).select('id_enseignant').lean();
+
+    return teachers.map(t => t.id_enseignant);
+  }
+
+  return null;
 };
 
 // =========================
-// FIELD FILTER BUILDER
+// FILTER BUILDER (Same as yours)
 // =========================
-const buildFieldFilter = (value) => {
-  if (value === undefined || value === null || value === '') return undefined;
-
-  if (typeof value === 'string')  return { $regex: value, $options: 'i' };
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number')  return value;
-
-  if (typeof value === 'object') {
-    const f = {};
-    if (value.min  !== undefined) f.$gte = value.min;
-    if (value.max  !== undefined) f.$lte = value.max;
-    if (value.in)                 f.$in  = value.in;
-    if (value.nin)                f.$nin = value.nin;
-    if (value.exact) return { $regex: `^${value.exact}$`, $options: 'i' };
-    return Object.keys(f).length ? f : undefined;
-  }
-
-  return value;
-};
-
-// =========================
-// QUERY BUILDER
-// =========================
-const buildQuery = (filters) => {
-  const teacherQuery = {};
-  const userQuery    = {};
-
-  for (const [key, value] of Object.entries(filters)) {
-    const parsed = buildFieldFilter(value);
-    if (!parsed) continue;
-
-    if (TEACHER_FIELDS.has(key)) teacherQuery[`teacher.${key}`]        = parsed;
-    if (USER_FIELDS.has(key))    userQuery[`user.${key}`]              = parsed;
-    if (SUBJECT_FIELDS.has(key)) teacherQuery['teacher.subjects.name'] = parsed;
-  }
-
-  return { teacherQuery, userQuery };
-};
-
-// =========================
-// PIPELINE BUILDER
-// =========================
-const buildPipeline = ({
-  baseMatch, userQuery, teacherQuery,
-  center, radius, finalSort, finalOrder,
-  pageNum, limitNum
+const buildFilter = ({
+  safeQuery,
+  statut,
+  niveauSchema,
+  annee_concerne,
+  matiere,
+  type_service,
+  modalite_service,
+  prix,
+  teacherNameIds,
+  geoTeacherIds,
 }) => {
+  const filter = {
+    isDeleted:               false,
+    suspendu:                false,
+    'archivedMeta.isArchived': false,
+  };
+
+  if (statut === 'actif')    filter.actif = true;
+  if (statut === 'inactive') filter.actif = false;
+
+  if (safeQuery) {
+    const orClauses = [
+      { nom_service: { $regex: safeQuery, $options: 'i' } },
+      { description: { $regex: safeQuery, $options: 'i' } },
+      { matiere:     { $regex: safeQuery, $options: 'i' } },
+    ];
+    if (teacherNameIds && teacherNameIds.length) {
+      orClauses.push({ id_enseignant: { $in: teacherNameIds } });
+    }
+    filter.$or = orClauses;
+  }
+
+  if (geoTeacherIds !== null) {
+    if (filter.$or) {
+      filter.$and = [
+        { $or: filter.$or },
+        { id_enseignant: { $in: geoTeacherIds } }
+      ];
+      delete filter.$or;
+    } else {
+      filter.id_enseignant = { $in: geoTeacherIds };
+    }
+  }
+
+  if (niveauSchema) filter.niveau_concerne = niveauSchema;
+  if (annee_concerne) filter.annee_concerne = { $regex: escapeRegex(annee_concerne), $options: 'i' };
+  if (matiere) filter.matiere = { $regex: escapeRegex(matiere), $options: 'i' };
+  if (type_service) filter.type_service = type_service;
+  // if (modalite_service) filter.modalite_service = modalite_service; // Uncomment if added to Service schema
+
+  if (prix && typeof prix === 'object') {
+    const prixFilter = {};
+    if (prix.min !== undefined && !isNaN(Number(prix.min))) prixFilter.$gte = Number(prix.min);
+    if (prix.max !== undefined && !isNaN(Number(prix.max))) prixFilter.$lte = Number(prix.max);
+    if (Object.keys(prixFilter).length) filter.prix = prixFilter;
+  }
+
+  return filter;
+};
+
+// =========================
+// PIPELINE BUILDER (Modified to Group by Teacher)
+// =========================
+const buildPipeline = ({ filter, safeQuery, finalSort, finalOrder, pageNum, limitNum, rating }) => {
   const pipeline = [];
 
-  pipeline.push({ $match: baseMatch });
+  // 1. Filter Services based on frontend queries
+  pipeline.push({ $match: filter });
 
-  // Join User
+  // 2. GROUP BY id_enseignant to get Unique Teachers offering these services
+  pipeline.push({
+    $group: {
+      _id: '$id_enseignant'
+    }
+  });
+
+  // 3. Join the unique Teachers
+  pipeline.push({
+    $lookup: {
+      from:         'teachers',
+      localField:   '_id',
+      foreignField: 'id_enseignant',
+      as:           'teacher'
+    }
+  });
+  pipeline.push({ $unwind: { path: '$teacher', preserveNullAndEmptyArrays: false } });
+
+  // 4. Ensure Teacher is globally active & accepted
+  pipeline.push({
+    $match: {
+      'teacher.acceptanceStatus': 'accepted',
+      'teacher.actif': true
+    }
+  });
+
+  // 5. Join the User data (Names, Emails, Photos)
   pipeline.push({
     $lookup: {
       from:         'users',
-      localField:   'id_enseignant',
+      localField:   '_id',
       foreignField: 'idmembre',
       as:           'user'
     }
   });
-  pipeline.push({ $unwind: '$user' });
+  pipeline.push({ $unwind: { path: '$user', preserveNullAndEmptyArrays: false } });
 
-  if (Object.keys(userQuery).length) {
-    pipeline.push({ $match: userQuery });
-  }
-
-  // Geo filter
-  if (center) {
+  // 6. Apply Minimum Rating filter if provided
+  if (rating && rating.min !== undefined && !isNaN(Number(rating.min))) {
     pipeline.push({
-      $match: {
-        location: {
-          $geoWithin: {
-            $centerSphere: [center, radius / EARTH_RADIUS]
-          }
-        }
-      }
+      $match: { 'teacher.rating': { $gte: Number(rating.min) } }
     });
   }
 
-  if (Object.keys(teacherQuery).length) {
-    pipeline.push({ $match: teacherQuery });
-  }
-
-  // Score
+  // 7. Calculate Teacher Relevance Score
   pipeline.push({
     $addFields: {
       score: {
         $add: [
-          { $multiply: [{ $ifNull: ['$rating',       0] }, 2]   },
-          { $multiply: [{ $ifNull: ['$reviewsCount', 0] }, 0.2] },
-          { $cond:     [{ $ifNull: ['$online', false] }, 5, 0]  }
+          ...(safeQuery ? [
+            {
+              $cond: [
+                {
+                  $or: [
+                    { $regexMatch: { input: { $ifNull: ['$user.firstname',  ''] }, regex: safeQuery, options: 'i' } },
+                    { $regexMatch: { input: { $ifNull: ['$user.familyname', ''] }, regex: safeQuery, options: 'i' } }
+                  ]
+                },
+                5, 0 // Bonus points if the text search matches the teacher's name
+              ]
+            }
+          ] : []),
+          { $multiply: [{ $ifNull: ['$teacher.rating',       0] }, 2]   },
+          { $multiply: [{ $ifNull: ['$teacher.reviewsCount', 0] }, 0.2] },
+          { $cond: [{ $eq: ['$teacher.online', true] }, 5, 0] }
         ]
       }
     }
   });
 
+  // 8. Sorting
   pipeline.push({ $sort: { [finalSort]: finalOrder } });
 
-  // $facet — count + data en une seule query
+  // 9. Pagination & Formatting explicitly for the TeacherCard
   pipeline.push({
     $facet: {
       metadata: [{ $count: 'total' }],
@@ -154,20 +244,21 @@ const buildPipeline = ({
         {
           $project: {
             _id:                     0,
-            id_enseignant:           1,
-            nature:                  1,
-            rating:                  1,
-            reviewsCount:            1,
-            online:                  1,
-            subjects:                1,
-            description_pedagogique: 1,
-            deplacement:             1,
-            rayon_deplacement:       1,
+            id_enseignant:           '$_id', // the grouped ID
+            firstname:               '$user.firstname',
+            familyname:              '$user.familyname',
+            email:                   '$user.email',
             photo_profil:            '$user.photo_profil',
-            score:                   1,
-            firstname:  '$user.firstname',
-            familyname: '$user.familyname',
-            email:      '$user.email'
+            rating:                  '$teacher.rating',
+            reviewsCount:            '$teacher.reviewsCount',
+            subjects:                '$teacher.subjects',
+            nature:                  '$teacher.nature',
+            online:                  '$teacher.online',
+            description_pedagogique: '$teacher.description_pedagogique',
+            deplacement:             '$teacher.deplacement',
+            rayon_deplacement:       '$teacher.rayon_deplacement',
+            modalite:                '$teacher.modalite',
+            score:                   1
           }
         }
       ]
@@ -180,59 +271,83 @@ const buildPipeline = ({
 // =========================
 // MAIN CONTROLLER
 // =========================
+// =========================
+// MAIN CONTROLLER
+// =========================
 const searchTeacherPro = async (req, res) => {
   try {
     const {
-      q,
-      city,
+      q = '',
+      page = DEFAULT_PAGE,
+      limit = DEFAULT_LIMIT,
+      sortBy = 'score',
+      sortOrder = -1,
+      statut = 'actif',
+      
+      // --- Updated Destructuring with Fallbacks ---
+      niveau_concerne,
+      niveau,          // fallback
+      annee_concerne,
+      annee,           // fallback
+      matiere,
+      type_service,
+      modalite_service,
+      prix,
+      rating,
       lat,
       lng,
-      radius    = DEFAULT_RADIUS,
-      page      = DEFAULT_PAGE,
-      limit     = DEFAULT_LIMIT,
-      sortBy    = 'score',
-      sortOrder = -1,
-      ...filters
+      radius,
+      city,
     } = req.body;
 
-    const pageNum    = Math.max(1, parseInt(page)  || DEFAULT_PAGE);
-    const limitNum   = Math.min(50, parseInt(limit) || DEFAULT_LIMIT);
-    const finalSort  = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : 'score';
-    const finalOrder = sortOrder === 1 || sortOrder === '1' ? 1 : -1;
+    // --- FIX: Resolve fields ---
+    const resolvedNiveau = niveau_concerne || niveau;
+    const resolvedAnnee  = annee_concerne || annee;
 
-    // Geo
-    let center = null;
-    if (city) {
-      center = await getCoordinatesFromCity(city);
-    } else if (lat && lng) {
-      center = [parseFloat(lng), parseFloat(lat)];
-    }
+    const query     = typeof q === 'string' ? q.trim() : '';
+    const safeQuery = query ? escapeRegex(query) : '';
 
-    // Base match
-    const baseMatch = { acceptanceStatus: 'accepted', actif: true };
+    const pageNum  = Math.max(1, parseInt(page)  || DEFAULT_PAGE);
+    const limitNum = Math.min(50, parseInt(limit) || DEFAULT_LIMIT);
 
-    if (q?.trim()) {
-      baseMatch.$or = [
-        { 'subjects.name':         { $regex: q, $options: 'i' } },
-        { description_pedagogique: { $regex: q, $options: 'i' } },
-        { nature:                  { $regex: q, $options: 'i' } }
-      ];
-    }
+    const resolvedSortBy = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : 'score';
+    const finalSort      = !query && resolvedSortBy === 'score' ? 'rating' : resolvedSortBy;
+    const finalOrder     = sortOrder === 1 || sortOrder === '1' ? 1 : -1;
 
-    const { teacherQuery, userQuery } = buildQuery(filters);
+    // --- Apply resolved variables ---
+    const niveauSchema = resolvedNiveau ? (NIVEAU_MAP[resolvedNiveau] ?? null) : null;
 
-    const pipeline = buildPipeline({
-      baseMatch, userQuery, teacherQuery,
-      center, radius: Number(radius),
-      finalSort, finalOrder, pageNum, limitNum
+    const [teacherNameIds, geoTeacherIds] = await Promise.all([
+      resolveTeacherIdsByName(query),
+      resolveTeacherIdsByGeo({ lat, lng, radius, city })
+    ]);
+
+    const filter = buildFilter({
+      safeQuery,
+      statut,
+      niveauSchema,
+      annee_concerne: resolvedAnnee, // Passed the resolved year here
+      matiere,
+      type_service,
+      modalite_service,
+      prix,
+      teacherNameIds,
+      geoTeacherIds,
     });
 
-    const result = await Teacher.aggregate(pipeline);
+    const pipeline = buildPipeline({
+      filter, safeQuery, finalSort, finalOrder,
+      pageNum, limitNum,
+      rating
+    });
+
+    const result = await Service.aggregate(pipeline);
     const total  = result[0]?.metadata[0]?.total || 0;
     const data   = result[0]?.data || [];
 
     return res.status(200).json({
       status:     'success',
+      query,
       page:       pageNum,
       limit:      limitNum,
       total,
@@ -241,9 +356,9 @@ const searchTeacherPro = async (req, res) => {
       data
     });
 
-  } catch (err) {
-    console.error('searchTeacherPro error:', err);
-    return res.status(500).json({ status: 'error', message: err.message });
+  } catch (error) {
+    console.error('searchTeacherPro error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
   }
 };
 
