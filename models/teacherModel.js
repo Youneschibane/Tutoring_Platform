@@ -87,6 +87,12 @@ const teacherSchema = new mongoose.Schema({
   // ─────────────────────────────
   // GEO LOCATION
   // ─────────────────────────────
+  wilaya: {
+    type: String,
+    default: null,
+    trim: true
+  },
+
   city: {
     type: String,
     default: null,
