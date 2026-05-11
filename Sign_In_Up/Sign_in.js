@@ -169,6 +169,16 @@ const signIn = async (req, res) => {
         roleData.city = roleData.parent.city;
       }
     }
+    // Add wilaya to roleData if available
+    if (roleData) {
+      if (roleData?.wilaya) {
+        // For teacher or other roles that have wilaya directly
+        roleData.wilaya = roleData.wilaya;
+      } else if (roleData?.parent?.wilaya) {
+        // For parent role, include wilaya from parent
+        roleData.wilaya = roleData.parent.wilaya;
+      }
+    }
 
     return res.status(200).json({
       status: 'success',
