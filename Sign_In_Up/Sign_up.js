@@ -212,6 +212,7 @@ exports.completeProfile = async (req, res) => {
       let latitude = 0;
       let longitude = 0;
       let city = profileData.city ? profileData.city.trim() : null;
+      let wilaya = profileData.wilaya ? profileData.wilaya.trim() : null;
 
       // ─────────────────────────────────────────
       // GEOCODING: Convert city to coordinates
@@ -237,6 +238,7 @@ exports.completeProfile = async (req, res) => {
         acceptanceStatus: 'pending',
         photo_profil:     photoProfilUrl,
         city,
+        wilaya,
         latitude,
         longitude,
         documents: { cv, diplomes }

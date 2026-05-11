@@ -36,7 +36,7 @@ const ROLE_CONFIGS = {
     idField:       'id_enseignant',
     roleName:      'enseignant',
     allowedFields: [
-      'nature', 'latitude', 'longitude', 'city', 'deplacement',
+      'nature', 'latitude', 'longitude', 'city', 'wilaya', 'deplacement',
       'rayon_deplacement', 'description_pedagogique',
       'actif', 'subjects', 'modalite', 'online'
     ]
@@ -161,22 +161,28 @@ const performUpdate = async (req, res, roleConfig) => {
     // ─────────────────────────────────────────
     // 5B. TEACHER-SPECIFIC: CITY TO COORDINATES
     // ─────────────────────────────────────────
-    if (roleConfig.roleName === 'enseignant' && extraFields.city && extraFields.city.trim()) {
-      try {
-        const geoData = await cityToCoordinates(extraFields.city);
-        roleUpdates.city = geoData.city;
-        roleUpdates.latitude = geoData.latitude;
-        roleUpdates.longitude = geoData.longitude;
+    if (roleConfig.roleName === 'enseignant') {
+      if (extraFields.wilaya && extraFields.wilaya.trim()) {
+        roleUpdates.wilaya = extraFields.wilaya.trim();
+      }
+      
+      if (extraFields.city && extraFields.city.trim()) {
+        try {
+          const geoData = await cityToCoordinates(extraFields.city);
+          roleUpdates.city = geoData.city;
+          roleUpdates.latitude = geoData.latitude;
+          roleUpdates.longitude = geoData.longitude;
 
-        console.log(`✓ Teacher profile update: City "${geoData.city}" → [${geoData.latitude}, ${geoData.longitude}]`);
-      } catch (geoError) {
-        // Log warning but don't block update — proceed with existing coordinates
-        console.warn(`⚠ Geocoding failed for city "${extraFields.city}": ${geoError.message}`);
+          console.log(`✓ Teacher profile update: City "${geoData.city}" → [${geoData.latitude}, ${geoData.longitude}]`);
+        } catch (geoError) {
+          // Log warning but don't block update — proceed with existing coordinates
+          console.warn(`⚠ Geocoding failed for city "${extraFields.city}": ${geoError.message}`);
 
-        // If coordinates were explicitly provided in the request, use them; otherwise leave unchanged
-        if (!extraFields.latitude && !extraFields.longitude) {
-          // Don't fail — allow update without coordinates
-          console.warn(`⚠ Proceeding with profile update without new coordinates`);
+          // If coordinates were explicitly provided in the request, use them; otherwise leave unchanged
+          if (!extraFields.latitude && !extraFields.longitude) {
+            // Don't fail — allow update without coordinates
+            console.warn(`⚠ Proceeding with profile update without new coordinates`);
+          }
         }
       }
     }

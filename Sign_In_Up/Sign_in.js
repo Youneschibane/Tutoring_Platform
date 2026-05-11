@@ -159,6 +159,17 @@ const signIn = async (req, res) => {
     const roleData = await getRoleData(user);
     user.password = undefined;
 
+    // Add city to roleData if available
+    if (roleData) {
+      if (roleData?.city) {
+        // For teacher or other roles that have city directly
+        roleData.city = roleData.city;
+      } else if (roleData?.parent?.city) {
+        // For parent role, include city from parent
+        roleData.city = roleData.parent.city;
+      }
+    }
+
     return res.status(200).json({
       status: 'success',
       message: "Connexion réussie.",
