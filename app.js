@@ -4,7 +4,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
-const xss = require('xss');
+requirexss = require('xss');
 require('dotenv').config();
 
 // =====================
@@ -63,6 +63,7 @@ const allowedOrigins = [
   'http://localhost:3000',
    'https://tutoring-platform-2.onrender.com/api-docs',
  'https://tutoring-platform-2.onrender.com',
+  'https://a-site-kenzochkl-stacks-projects.vercel.app/',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
