@@ -63,7 +63,8 @@ const allowedOrigins = [
   'http://localhost:3000',
    'https://tutoring-platform-2.onrender.com/api-docs',
  'https://tutoring-platform-2.onrender.com',
-  'https://a-site-kenzochkl-stacks-projects.vercel.app/',
+  'https://a-site-kenzochkl-stacks-projects.vercel.app',
+  'https://a-site-pi.vercel.app', 
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
