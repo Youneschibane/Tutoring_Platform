@@ -4,7 +4,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
-requirexss = require('xss');
+const xss = require('xss');
 require('dotenv').config();
 
 // =====================
