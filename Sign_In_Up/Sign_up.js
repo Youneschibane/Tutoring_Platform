@@ -105,7 +105,7 @@ exports.completeProfile = async (req, res) => {
     // 2. PARSE CHAMPS JSON (multipart/form-data)
     // ─────────────────────────────────────────
     profileData.subjects = safeJSON(profileData.subjects, "Invalid subjects format.");
-    profileData.children = safeJSON(profileData.children, "Invalid children format.");
+    profileData.children = safeJSON(profileData.enfants, "Invalid children format.");
 
     // ─────────────────────────────────────────
     // 3. VÉRIFIER ET DÉCODER LE SIGNUP TOKEN
