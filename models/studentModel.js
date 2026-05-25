@@ -18,7 +18,7 @@ yearOfStudy:{
   niveau_scolaire:{
     type:String,
     required:true,
-    enum:["Primaire","College","Lycee","Esi"]
+    enum:["Primaire", "College", "Lycee", "Esi", "Collège", "Lycée", "ESI"]
   },
 
   
