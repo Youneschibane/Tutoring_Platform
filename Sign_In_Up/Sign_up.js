@@ -284,7 +284,9 @@ exports.completeProfile = async (req, res) => {
             id_eleve:   childId,
             id_parent:  idmembre,
             firstname:  child.firstname,
-            familyname: child.familyname
+            familyname: child.familyname,
+            niveau_scolaire: child.niveau_scolaire,
+            yearOfStudy: child.yearOfStudy,
           }], { session });
           return newChild;
         })
