@@ -105,7 +105,7 @@ exports.completeProfile = async (req, res) => {
     // 2. PARSE CHAMPS JSON (multipart/form-data)
     // ─────────────────────────────────────────
     profileData.subjects = safeJSON(profileData.subjects, "Invalid subjects format.");
-    profileData.children = safeJSON(profileData.enfants, "Invalid children format.");
+    profileData.enfants = safeJSON(profileData.enfants, "Invalid children format.");
 
     // ─────────────────────────────────────────
     // 3. VÉRIFIER ET DÉCODER LE SIGNUP TOKEN
@@ -262,7 +262,7 @@ exports.completeProfile = async (req, res) => {
     // ── PARENT ────────────────────────────────
     else if (role === 'parent') {
 
-      const children = profileData.children || [];
+      const children = profileData.enfants || [];
 
       if (!Array.isArray(children) || children.length === 0) {
         throw new Error("Au moins un enfant est requis pour un compte parent.");
