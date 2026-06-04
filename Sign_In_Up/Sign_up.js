@@ -259,47 +259,59 @@ exports.completeProfile = async (req, res) => {
       details = student[0];
     }
 
-    // ── PARENT ────────────────────────────────
-    else if (role === 'parent') {
+// ── PARENT ────────────────────────────────
+else if (role === 'parent') {
 
-      const children = profileData.enfants || [];
+  const children = profileData.enfants || [];
 
-      if (!Array.isArray(children) || children.length === 0) {
-        throw new Error("Au moins un enfant est requis pour un compte parent.");
-      }
+  if (!Array.isArray(children) || children.length === 0) {
+    throw new Error("Au moins un enfant est requis pour un compte parent.");
+  }
 
-      // Validation préalable — fail fast avant toute opération DB
-      for (const child of children) {
-        if (!child.firstname || !child.familyname) {
-          throw new Error("Chaque enfant doit avoir un prénom et un nom de famille.");
-        }
-      }
+  const validNiveaux = ["Primaire", "College", "Lycee", "Esi"];
 
-      // ✅ OPTIMISATION MAJEURE : création des enfants en parallèle
-      // getNextId est atomique ($inc) → safe à paralléliser
-      const childDocs = await Promise.all(
-        children.map(async (child) => {
-          const childId = await getNextId('student');
-          const [newChild] = await Student.create([{
-            id_eleve:   childId,
-            id_parent:  idmembre,
-            firstname:  child.firstname,
-            familyname: child.familyname,
-            niveau_scolaire: child.niveau_scolaire,
-            yearOfStudy: child.yearOfStudy,
-          }], { session });
-          return newChild;
-        })
-      );
-
-      const parent = await Parent.create([{
-        id_parent:    idmembre,
-        enfants:      childDocs.map(c => c._id),
-        photo_profil: photoProfilUrl
-      }], { session });
-
-      details = parent[0];
+  // Validation préalable — fail fast avant toute opération DB
+  for (const child of children) {
+    if (!child.firstname || !child.familyname) {
+      throw new Error("Chaque enfant doit avoir un prénom et un nom de famille.");
     }
+    if (!child.niveau_scolaire) {
+      throw new Error("Le niveau scolaire est obligatoire pour chaque enfant.");
+    }
+    if (!validNiveaux.includes(child.niveau_scolaire)) {
+      throw new Error(`Niveau scolaire invalide. Valeurs acceptées: ${validNiveaux.join(', ')}`);
+    }
+  }
+
+  // ✅ OPTIMISATION MAJEURE : création des enfants en parallèle
+  // getNextId est atomique ($inc) → safe à paralléliser
+  const childDocs = await Promise.all(
+    children.map(async (child) => {
+      const childId = await getNextId('eleve'); // ← was 'student'
+      const [newChild] = await Student.create([{
+        id_eleve:        childId,
+        id_parent:       idmembre,
+        niveau_scolaire: child.niveau_scolaire,
+        yearOfStudy:     child.yearOfStudy || null,
+      }], { session });
+      return { doc: newChild, firstname: child.firstname, familyname: child.familyname };
+    })
+  );
+
+  const parent = await Parent.create([{
+    id_parent:    idmembre,
+    photo_profil: photoProfilUrl,
+    // ← store { student, firstname, familyname } snapshot, matching ajouterEnfant
+    enfants: childDocs.map(({ doc, firstname, familyname }) => ({
+      student:    doc._id,
+      firstname,
+      familyname,
+    })),
+  }], { session });
+
+  details = parent[0];
+} 
+ 
 
     // ── ADMIN ─────────────────────────────────
     else if (role === 'admin') {
