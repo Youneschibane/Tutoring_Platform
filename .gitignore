@@ -1,34 +1,4 @@
-#Node modules
-node_modules/
-
-#Environment variables
+﻿node_modules/
 .env
-MONGO_URI=mongodb://oychibane_db_user:Ax3g1SLETz5L2Yfy@ac-e18d8zh-shard-00-00.e5dyfko.mongodb.net:27017,ac-e18d8zh-shard-00-01.e5dyfko.mongodb.net:27017,ac-e18d8zh-shard-00-02.e5dyfko.mongodb.net:27017/?ssl=true&replicaSet=atlas-j4shlu-shard-0&authSource=admin
-PORT=3000
-JWT_SECRET=8fK9$zLmPq#92nX!aBcD@eFgH12345kLmN
-#Logs
-logs/
-*.log
-npm-debug.log*
-
-
-#Build
-dist/
-build/
-
-#OS
-.DS_Store
-Thumbs.db
-
-#IDE
-.vscode/
-.idea/
-
-#Build folders
-build/
-dist/
-
 firebase-key.json
-.env
-node_modules/
-.sciprt.js
+logs/
